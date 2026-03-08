@@ -307,6 +307,18 @@ class Settings:
             "True",
         }
         self.suggestion_max_items: int = int(os.getenv("SUGGESTION_MAX_ITEMS", "5"))
+        # F3.07 — Self-heal loop
+        self.self_heal_enabled: bool = os.getenv("SELF_HEAL_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.self_heal_auto_fix: bool = os.getenv("SELF_HEAL_AUTO_FIX", "0") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.self_heal_anomaly_limit: int = int(os.getenv("SELF_HEAL_ANOMALY_LIMIT", "20"))
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

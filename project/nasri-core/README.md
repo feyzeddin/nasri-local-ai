@@ -125,3 +125,9 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 
 - `GET /suggestions/proactive?profile_id=...`
 - Profil bazlı bellek sinyallerinden ve zaman bilgisinden öneriler üretir
+
+## Self-Heal Döngüsü
+
+- `GET /self-heal/status`
+- `POST /self-heal/run?force=true|false`
+- Hata tespiti (maintenance/anomaly) sonrası otomatik bakım ve yedek aksiyonları çalıştırır
