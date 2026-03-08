@@ -279,6 +279,15 @@ class Settings:
         ) in {"1", "true", "True"}
         self.backup_remote_target: str = os.getenv("BACKUP_REMOTE_TARGET", "").strip()
         self.backup_remote_command: str = os.getenv("BACKUP_REMOTE_COMMAND", "").strip()
+        # F2.14 — Driver manager
+        self.driver_manager_enabled: bool = os.getenv("DRIVER_MANAGER_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.driver_manager_auto_install: bool = os.getenv(
+            "DRIVER_MANAGER_AUTO_INSTALL", "0"
+        ) in {"1", "true", "True"}
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

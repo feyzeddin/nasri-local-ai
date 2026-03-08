@@ -100,3 +100,9 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `GET /backup/history`
 - Kaynak yolları arşivlenir, opsiyonel AES ile şifrelenir ve yerel backup dizinine yazılır
 - Retention sayısına göre eski yedekler otomatik temizlenir
+
+## Driver Manager
+
+- `GET /driver/scan`
+- `POST /driver/install`
+- Windows/Linux için sürücü tarama ve kontrollü kurulum akışı sağlar
