@@ -83,6 +83,13 @@ class Settings:
         self.biometric_salt: str = os.getenv(
             "NASRI_BIOMETRIC_SALT", "nasri-biometric-salt"
         ).strip()
+        # F2.01 — RAG (ChromaDB + nomic-embed-text)
+        self.rag_collection_name: str = os.getenv("RAG_COLLECTION_NAME", "nasri_docs")
+        self.rag_persist_dir: str = os.getenv("RAG_PERSIST_DIR", ".nasri-rag")
+        self.rag_embedding_model: str = os.getenv(
+            "RAG_EMBEDDING_MODEL", "nomic-embed-text"
+        )
+        self.rag_default_top_k: int = int(os.getenv("RAG_DEFAULT_TOP_K", "5"))
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

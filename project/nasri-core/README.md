@@ -23,3 +23,9 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - Backend: `whisper.cpp`
 - `POST /speech/synthesize` (JSON: `{ "text": "..." }`)
 - Backend: `piper`
+
+## RAG
+
+- `POST /rag/index` (doküman/chunk indexleme)
+- `GET /rag/query?q=...&top_k=...` (semantic arama)
+- Varsayılan embedding modeli: `nomic-embed-text` (Ollama)
