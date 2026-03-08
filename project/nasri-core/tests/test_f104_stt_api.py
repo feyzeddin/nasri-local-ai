@@ -77,3 +77,20 @@ def test_transcribe_rejects_non_audio(monkeypatch):
     )
     assert resp.status_code == 400
 
+
+def test_synthesize_success(monkeypatch):
+    client = _client(monkeypatch)
+    import app.api.speech as speech_module
+
+    monkeypatch.setattr(speech_module, "synthesize_speech", lambda *_args, **_kwargs: b"RIFFdemoWAVE")
+    resp = client.post("/speech/synthesize", json={"text": "Selam"})
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("audio/wav")
+    assert resp.content.startswith(b"RIFF")
+
+
+def test_synthesize_rejects_empty_text(monkeypatch):
+    client = _client(monkeypatch)
+    resp = client.post("/speech/synthesize", json={"text": "   "})
+    assert resp.status_code == 400
+

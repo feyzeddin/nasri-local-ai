@@ -21,3 +21,5 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 
 - `POST /speech/transcribe` (multipart form-data, `audio` alanı)
 - Backend: `whisper.cpp`
+- `POST /speech/synthesize` (JSON: `{ "text": "..." }`)
+- Backend: `piper`

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 
 from app.core.security import AuthSession, require_roles
 from app.core.settings import get_settings
-from app.schemas.speech import SpeechTranscribeResponse
+from app.schemas.speech import SpeechSynthesizeRequest, SpeechTranscribeResponse
 from app.services.stt import STTError, transcribe_audio_bytes
+from app.services.tts import TTSError, synthesize_speech
 
 router = APIRouter(prefix="/speech", tags=["speech"])
 
@@ -37,4 +39,23 @@ async def transcribe(
         language=get_settings().whisper_cpp_language,
         engine="whisper.cpp",
     )
+
+
+@router.post("/synthesize")
+async def synthesize(
+    body: SpeechSynthesizeRequest,
+    _session: AuthSession = Depends(require_roles("admin", "operator", "viewer")),
+) -> Response:
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Metin boş olamaz.")
+    if len(text) > 3000:
+        raise HTTPException(status_code=400, detail="Metin çok uzun (max 3000).")
+
+    try:
+        audio = synthesize_speech(text)
+    except TTSError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return Response(content=audio, media_type="audio/wav")
 

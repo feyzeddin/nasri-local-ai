@@ -8,3 +8,8 @@ class SpeechTranscribeResponse(BaseModel):
     language: str
     engine: str
 
+
+class SpeechSynthesizeRequest(BaseModel):
+    text: str
+
+

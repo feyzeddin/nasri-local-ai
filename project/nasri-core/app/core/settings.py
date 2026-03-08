@@ -63,6 +63,15 @@ class Settings:
         self.whisper_cpp_timeout_seconds: int = int(
             os.getenv("WHISPER_CPP_TIMEOUT_SECONDS", "180")
         )
+        # F1.05 — Piper TTS
+        self.piper_binary: str = os.getenv("PIPER_BINARY", "").strip()
+        self.piper_model: str = os.getenv("PIPER_MODEL", "").strip()
+        self.piper_output_sample_rate: int = int(
+            os.getenv("PIPER_OUTPUT_SAMPLE_RATE", "22050")
+        )
+        self.piper_timeout_seconds: int = int(
+            os.getenv("PIPER_TIMEOUT_SECONDS", "120")
+        )
 
 
 @lru_cache
