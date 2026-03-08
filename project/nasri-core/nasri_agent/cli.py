@@ -8,6 +8,7 @@ def _help_text() -> str:
 /status   Durum kontrolu
 /version  Surum bilgisi
 /help     Komut listesini yazdir
+/chat     Ollama ile sohbet baslat
 start     Servisi foreground baslat
 """
 
@@ -52,6 +53,12 @@ def cmd_start() -> int:
     return 0
 
 
+def cmd_chat() -> int:
+    from .chat import chat_loop
+
+    return chat_loop()
+
+
 def cmd_install_service() -> int:
     from .service import install_service
 
@@ -82,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_version()
     if command == "help":
         return cmd_help()
+    if command == "chat":
+        return cmd_chat()
     if command == "start":
         return cmd_start()
     if command == "installservice":
