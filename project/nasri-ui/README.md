@@ -1,8 +1,16 @@
 ﻿# nasri-ui
 
-Frontend uygulaması için çalışma alanı.
+Vite + React + TypeScript frontend uygulaması.
 
-Planlanan yapı:
+## Komutlar
 
-- `src/`
-- test ve build araçları (Vite/Next.js seçimine göre)
+- `npm install`
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
+
+## Env
+
+`.env.example` dosyasını `.env` olarak kopyalayın.
+
+- `VITE_API_BASE_URL=http://localhost:8000`

@@ -1,22 +1,62 @@
-﻿from fastapi import FastAPI
+﻿from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as auth_router
+from app.api.chat import router as chat_router
+from app.api.files import router as files_router
+from app.api.onboarding import router as onboarding_router
+from app.core.health import build_readiness
+from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
 
 
-app = FastAPI(title="nasri-core", version="0.1.0")
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/config")
-def config() -> dict[str, str | int]:
+def _create_app() -> FastAPI:
     settings = get_settings()
-    return {
-        "redis_host": settings.redis_host,
-        "redis_port": settings.redis_port,
-        "ollama_url": settings.ollama_url,
-        "model_name": settings.model_name,
-    }
+
+    application = FastAPI(title="nasri-core", version="0.1.0")
+
+    # F12.2 — CORS
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # F12.1 + F12.3 — Auth + Rate limit tüm /chat rotalarına uygulanır
+    application.include_router(
+        chat_router,
+        dependencies=[Depends(verify_api_key), Depends(rate_limit)],
+    )
+    application.include_router(auth_router)
+    application.include_router(files_router)
+    application.include_router(onboarding_router)
+
+    @application.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @application.get("/health/ready")
+    async def health_ready() -> dict:
+        result = await build_readiness()
+        if result["status"] != "ok":
+            raise HTTPException(status_code=503, detail=result)
+        return result
+
+    @application.get("/config")
+    def config(
+        _session: AuthSession = Depends(require_roles("admin")),
+    ) -> dict[str, str | int]:
+        s = get_settings()
+        return {
+            "redis_host": s.redis_host,
+            "redis_port": s.redis_port,
+            "ollama_url": s.ollama_url,
+            "model_name": s.model_name,
+        }
+
+    return application
+
+
+app = _create_app()

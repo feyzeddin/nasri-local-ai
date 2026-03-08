@@ -11,3 +11,8 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 ## Docker ile
 
 - `docker compose up -d` (nasri-core dizininde)
+
+## Sağlık Endpointleri
+
+- `GET /health` temel canlılık kontrolü
+- `GET /health/ready` Redis + Ollama bağımlılık hazır olma kontrolü

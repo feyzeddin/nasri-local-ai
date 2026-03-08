@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nasri"
+version = "0.1.0"
+description = "Nasri command line and background service"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx>=0.28,<0.29",
+]
+
+[project.scripts]
+nasri = "nasri_agent.cli:main"
+
+[tool.setuptools]
+packages = ["nasri_agent"]
