@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.core.settings import get_settings
+from app.services.external_ai import ExternalAIError, send_chat
 from app.services.llm import OllamaClient, OllamaError
 
 _ALLOWED_TIERS = ("local", "free", "paid")
@@ -139,6 +140,35 @@ async def route_chat(
                     )
                 )
                 continue
+            free_provider = s.model_router_free_provider.strip().lower()
+            if free_provider in {"groq", "gemini", "openrouter"}:
+                try:
+                    ext = await send_chat(
+                        provider=free_provider,
+                        prompt=text,
+                        system_prompt=system_prompt,
+                    )
+                    attempts.append(
+                        RouterAttempt(
+                            tier="free",
+                            status="ok",
+                            detail=f"provider={free_provider}",
+                        )
+                    )
+                    return RouterResult(
+                        reply=ext.reply,
+                        used_tier="free",
+                        attempts=attempts,
+                    )
+                except ExternalAIError as exc:
+                    attempts.append(
+                        RouterAttempt(
+                            tier="free",
+                            status="failed",
+                            detail=f"provider={free_provider}: {exc}",
+                        )
+                    )
+                    continue
             if not s.model_router_free_api_url or not s.model_router_free_model:
                 attempts.append(
                     RouterAttempt(
@@ -171,6 +201,35 @@ async def route_chat(
                     )
                 )
                 continue
+            paid_provider = s.model_router_paid_provider.strip().lower()
+            if paid_provider in {"groq", "gemini", "openrouter"}:
+                try:
+                    ext = await send_chat(
+                        provider=paid_provider,
+                        prompt=text,
+                        system_prompt=system_prompt,
+                    )
+                    attempts.append(
+                        RouterAttempt(
+                            tier="paid",
+                            status="ok",
+                            detail=f"provider={paid_provider}",
+                        )
+                    )
+                    return RouterResult(
+                        reply=ext.reply,
+                        used_tier="paid",
+                        attempts=attempts,
+                    )
+                except ExternalAIError as exc:
+                    attempts.append(
+                        RouterAttempt(
+                            tier="paid",
+                            status="failed",
+                            detail=f"provider={paid_provider}: {exc}",
+                        )
+                    )
+                    continue
             if not s.model_router_paid_api_url or not s.model_router_paid_model:
                 attempts.append(
                     RouterAttempt(

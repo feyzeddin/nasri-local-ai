@@ -44,3 +44,10 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /model-router/chat`
 - Katman sırası: `local -> free -> paid` (env ile değiştirilebilir)
 - Bir katman hata verirse bir sonraki katmana otomatik fallback yapılır
+
+## External AI (Groq, Gemini, OpenRouter)
+
+- `POST /external-ai/chat`
+- Provider bazlı rate-limit (`*_RPM`) uygulanır
+- İstek metni isteğe bağlı anonimleştirilir (`EXTERNAL_AI_ANONYMIZE_ENABLED=1`)
+- Redis üzerinde günlük token/maliyet takibi tutulur (`external_ai:cost:*` anahtarları)

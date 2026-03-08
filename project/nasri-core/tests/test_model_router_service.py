@@ -15,10 +15,12 @@ class _Settings:
         self.model_router_free_api_url = "https://free.example.com/chat/completions"
         self.model_router_free_api_key = ""
         self.model_router_free_model = "free-model"
+        self.model_router_free_provider = ""
         self.model_router_paid_enabled = True
         self.model_router_paid_api_url = "https://paid.example.com/chat/completions"
         self.model_router_paid_api_key = "paid-key"
         self.model_router_paid_model = "paid-model"
+        self.model_router_paid_provider = ""
 
 
 @pytest.mark.asyncio
@@ -76,20 +78,26 @@ async def test_route_chat_raises_when_all_layers_unavailable(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_route_chat_respects_preferred_tier(monkeypatch):
-    monkeypatch.setattr(router_module, "get_settings", lambda: _Settings())
+    settings = _Settings()
+    settings.model_router_free_provider = "groq"
+    monkeypatch.setattr(router_module, "get_settings", lambda: settings)
     calls: list[str] = []
 
     async def _local(_messages):
         calls.append("local")
         return "local"
 
-    async def _remote(**_kwargs):
-        calls.append("free")
-        return "free"
+    async def _send_chat(**kwargs):
+        calls.append(str(kwargs.get("provider")))
+
+        class _R:
+            reply = "free"
+
+        return _R()
 
     monkeypatch.setattr(router_module, "_chat_local", _local)
-    monkeypatch.setattr(router_module, "_chat_remote", _remote)
+    monkeypatch.setattr(router_module, "send_chat", _send_chat)
 
     result = await router_module.route_chat(prompt="Merhaba", preferred_tier="free")
     assert result.used_tier == "free"
-    assert calls == ["free"]
+    assert calls == ["groq"]

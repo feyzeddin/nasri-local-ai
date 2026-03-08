@@ -125,6 +125,58 @@ class Settings:
         self.model_router_paid_model: str = os.getenv(
             "MODEL_ROUTER_PAID_MODEL", ""
         ).strip()
+        self.model_router_free_provider: str = os.getenv(
+            "MODEL_ROUTER_FREE_PROVIDER", "groq"
+        ).strip()
+        self.model_router_paid_provider: str = os.getenv(
+            "MODEL_ROUTER_PAID_PROVIDER", "openrouter"
+        ).strip()
+        # F2.05 — Dış AI API entegrasyonu
+        self.external_ai_anonymize_enabled: bool = os.getenv(
+            "EXTERNAL_AI_ANONYMIZE_ENABLED", "1"
+        ) in {"1", "true", "True"}
+
+        self.groq_api_key: str = os.getenv("GROQ_API_KEY", "").strip()
+        self.groq_api_url: str = os.getenv(
+            "GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions"
+        ).strip()
+        self.groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
+        self.groq_rpm: int = int(os.getenv("GROQ_RPM", "60"))
+        self.groq_cost_input_per_1k: float = float(
+            os.getenv("GROQ_COST_INPUT_PER_1K", "0")
+        )
+        self.groq_cost_output_per_1k: float = float(
+            os.getenv("GROQ_COST_OUTPUT_PER_1K", "0")
+        )
+
+        self.openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "").strip()
+        self.openrouter_api_url: str = os.getenv(
+            "OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions"
+        ).strip()
+        self.openrouter_model: str = os.getenv(
+            "OPENROUTER_MODEL", "openai/gpt-4o-mini"
+        ).strip()
+        self.openrouter_rpm: int = int(os.getenv("OPENROUTER_RPM", "30"))
+        self.openrouter_cost_input_per_1k: float = float(
+            os.getenv("OPENROUTER_COST_INPUT_PER_1K", "0")
+        )
+        self.openrouter_cost_output_per_1k: float = float(
+            os.getenv("OPENROUTER_COST_OUTPUT_PER_1K", "0")
+        )
+
+        self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "").strip()
+        self.gemini_api_url: str = os.getenv(
+            "GEMINI_API_URL",
+            "https://generativelanguage.googleapis.com/v1beta/models",
+        ).strip()
+        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+        self.gemini_rpm: int = int(os.getenv("GEMINI_RPM", "30"))
+        self.gemini_cost_input_per_1k: float = float(
+            os.getenv("GEMINI_COST_INPUT_PER_1K", "0")
+        )
+        self.gemini_cost_output_per_1k: float = float(
+            os.getenv("GEMINI_COST_OUTPUT_PER_1K", "0")
+        )
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
