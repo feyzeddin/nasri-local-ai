@@ -232,6 +232,19 @@ class Settings:
             "MAINTENANCE_UPDATE_COMMAND", ""
         ).strip()
         self.maintenance_disk_paths: str = os.getenv("MAINTENANCE_DISK_PATHS", ".")
+        # F2.10 — Web research agent (SearXNG + summarization)
+        self.research_searxng_url: str = os.getenv(
+            "RESEARCH_SEARXNG_URL", "http://localhost:8080"
+        ).strip()
+        self.research_max_results: int = int(os.getenv("RESEARCH_MAX_RESULTS", "5"))
+        self.research_fetch_timeout_seconds: int = int(
+            os.getenv("RESEARCH_FETCH_TIMEOUT_SECONDS", "20")
+        )
+        self.research_save_dir: str = os.getenv("RESEARCH_SAVE_DIR", ".nasri-research")
+        self.research_allowed_domains: str = os.getenv(
+            "RESEARCH_ALLOWED_DOMAINS",
+            "wikipedia.org,bbc.com,reuters.com,aa.com.tr,trthaber.com,gov.tr,edu",
+        )
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

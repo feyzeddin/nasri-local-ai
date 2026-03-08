@@ -79,3 +79,10 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /maintenance/run`
 - Disk kullanım raporu, log temizliği ve opsiyonel sistem güncellemesi adımlarını içerir
 - Arka planda periyodik worker ile due olduğunda otomatik tetiklenir
+
+## Web Araştırma Ajanı
+
+- `POST /research/query`
+- SearXNG ile arama yapar (`RESEARCH_SEARXNG_URL`)
+- Güvenilir domain filtresi uygular (`RESEARCH_ALLOWED_DOMAINS`)
+- Sayfa içeriğini özetler ve raporu yerel dosyaya kaydeder (`RESEARCH_SAVE_DIR`)
