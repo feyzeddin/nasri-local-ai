@@ -66,3 +66,9 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `DELETE /ssh/profiles/{profile_name}`
 - `POST /ssh/exec` (uzak komut çalıştırma)
 - `POST /ssh/upload` ve `POST /ssh/download` (SFTP dosya transferi)
+
+## Home Assistant + MQTT Köprüsü
+
+- `POST /home-automation/command`
+- Doğal dil komutlarını temel aksiyonlara çevirir (`turn_on`, `turn_off`, `set_temperature`)
+- `mode=auto` ise önce Home Assistant, başarısızsa MQTT fallback uygulanır

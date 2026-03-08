@@ -191,6 +191,27 @@ class Settings:
         self.ssh_connect_timeout_seconds: int = int(
             os.getenv("SSH_CONNECT_TIMEOUT_SECONDS", "15")
         )
+        # F2.08 — Home Assistant + MQTT bridge
+        self.home_assistant_enabled: bool = os.getenv(
+            "HOME_ASSISTANT_ENABLED", "0"
+        ) in {"1", "true", "True"}
+        self.home_assistant_url: str = os.getenv(
+            "HOME_ASSISTANT_URL", "http://localhost:8123"
+        ).strip()
+        self.home_assistant_token: str = os.getenv("HOME_ASSISTANT_TOKEN", "").strip()
+        self.home_assistant_default_area: str = os.getenv(
+            "HOME_ASSISTANT_DEFAULT_AREA", "salon"
+        ).strip()
+        self.mqtt_enabled: bool = os.getenv("MQTT_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.mqtt_host: str = os.getenv("MQTT_HOST", "localhost").strip()
+        self.mqtt_port: int = int(os.getenv("MQTT_PORT", "1883"))
+        self.mqtt_username: str = os.getenv("MQTT_USERNAME", "").strip()
+        self.mqtt_password: str = os.getenv("MQTT_PASSWORD", "").strip()
+        self.mqtt_topic_prefix: str = os.getenv("MQTT_TOPIC_PREFIX", "nasri").strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
