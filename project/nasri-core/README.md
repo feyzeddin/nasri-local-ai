@@ -136,6 +136,14 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /matter/action`
 - Matter controller API üzerinden Thread cihaz keşfi, eşleştirme ve komut akışı sağlar
 
+## Beta Program
+
+- `POST /beta-program/candidates` (admin/operator)
+- `GET /beta-program/candidates` (admin/operator/viewer)
+- `POST /beta-program/feedback` (admin/operator/viewer)
+- `GET /beta-program/feedback?limit=...`
+- NDA kabul işareti ve geri bildirim kayıtları Redis üzerinde tutulur
+
 ## Proaktif Öneri Motoru
 
 - `GET /suggestions/proactive?profile_id=...`

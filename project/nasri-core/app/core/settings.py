@@ -358,6 +358,12 @@ class Settings:
         self.matter_controller_token: str = os.getenv(
             "MATTER_CONTROLLER_TOKEN", ""
         ).strip()
+        # F3.12 — Beta program
+        self.beta_program_enabled: bool = os.getenv("BETA_PROGRAM_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
