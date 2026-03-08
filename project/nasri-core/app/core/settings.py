@@ -90,6 +90,11 @@ class Settings:
             "RAG_EMBEDDING_MODEL", "nomic-embed-text"
         )
         self.rag_default_top_k: int = int(os.getenv("RAG_DEFAULT_TOP_K", "5"))
+        # F2.02 — Long-term Memory Manager
+        self.memory_collection_name: str = os.getenv(
+            "MEMORY_COLLECTION_NAME", "nasri_memory"
+        )
+        self.memory_default_top_k: int = int(os.getenv("MEMORY_DEFAULT_TOP_K", "5"))
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

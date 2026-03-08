@@ -29,3 +29,8 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /rag/index` (doküman/chunk indexleme)
 - `GET /rag/query?q=...&top_k=...` (semantic arama)
 - Varsayılan embedding modeli: `nomic-embed-text` (Ollama)
+
+## Memory Manager
+
+- `POST /memory/store` (profil bazlı uzun vadeli bellek yazma)
+- `GET /memory/recall?profile_id=...&q=...` (semantik bellek geri çağırma)
