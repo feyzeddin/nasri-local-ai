@@ -1,0 +1,221 @@
+﻿import datetime as dt
+import json
+import os
+import platform
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from . import __version__
+from .config import install_dir, local_version, lock_file, state_file
+from .updater import maybe_update, should_check_update
+
+RUNNING = True
+
+
+def _handle_stop(_sig: int, _frame: object) -> None:
+    global RUNNING
+    RUNNING = False
+
+
+def _write_state(**kwargs: str) -> None:
+    path = state_file()
+    current: dict[str, str] = {}
+    if path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            current = {}
+    current.update(kwargs)
+    current["updated_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    path.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _take_lock() -> bool:
+    lock = lock_file()
+    if lock.exists():
+        try:
+            old_pid = int(lock.read_text(encoding="utf-8").strip())
+            if old_pid > 0:
+                os.kill(old_pid, 0)
+                return False
+        except Exception:
+            pass
+    lock.write_text(str(os.getpid()), encoding="utf-8")
+    return True
+
+
+def _release_lock() -> None:
+    lock = lock_file()
+    if lock.exists():
+        lock.unlink(missing_ok=True)
+
+
+def run_service() -> None:
+    signal.signal(signal.SIGTERM, _handle_stop)
+    signal.signal(signal.SIGINT, _handle_stop)
+
+    if not _take_lock():
+        print("Nasri servis zaten calisiyor.")
+        return
+
+    try:
+        _write_state(
+            status="running",
+            version=__version__,
+            installed_version=local_version(),
+            started_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+            platform=platform.platform(),
+        )
+        while RUNNING:
+            current = {}
+            try:
+                current = json.loads(state_file().read_text(encoding="utf-8"))
+            except Exception:
+                current = {}
+
+            last_checked = current.get("last_update_check")
+            if should_check_update(last_checked):
+                now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
+                _write_state(last_update_check=now_iso)
+                updated = maybe_update()
+                if updated:
+                    _write_state(last_update_result="ok:updated", installed_version=local_version())
+            time.sleep(30)
+
+        _write_state(status="stopped")
+    finally:
+        _release_lock()
+
+
+def _run_cmd(args: list[str]) -> None:
+    subprocess.run(args, check=True)
+
+
+def _install_linux_service() -> None:
+    service_user = os.getenv("NASRI_SERVICE_USER") or os.getenv("SUDO_USER") or os.getenv("USER", "root")
+    data_path = install_dir() / ".nasri-data"
+    data_path.mkdir(parents=True, exist_ok=True)
+    service_text = f"""[Unit]
+Description=Nasri Background Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={service_user}
+WorkingDirectory={install_dir()}
+Environment=NASRI_INSTALL_DIR={install_dir()}
+Environment=NASRI_DATA_DIR={data_path}
+ExecStart={sys.executable} -m nasri_agent.service
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+"""
+    target = Path("/etc/systemd/system/nasri.service")
+    target.write_text(service_text, encoding="utf-8")
+    _run_cmd(["systemctl", "daemon-reload"])
+    _run_cmd(["systemctl", "enable", "nasri.service"])
+    _run_cmd(["systemctl", "restart", "nasri.service"])
+
+
+def _install_macos_service() -> None:
+    data_path = install_dir() / ".nasri-data"
+    data_path.mkdir(parents=True, exist_ok=True)
+    launch_agents = Path.home() / "Library" / "LaunchAgents"
+    launch_agents.mkdir(parents=True, exist_ok=True)
+    plist = launch_agents / "com.nasri.service.plist"
+    content = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+  <key>Label</key>
+  <string>com.nasri.service</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{sys.executable}</string>
+    <string>-m</string>
+    <string>nasri_agent.service</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NASRI_INSTALL_DIR</key>
+    <string>{install_dir()}</string>
+    <key>NASRI_DATA_DIR</key>
+    <string>{data_path}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>WorkingDirectory</key>
+  <string>{install_dir()}</string>
+</dict>
+</plist>
+"""
+    plist.write_text(content, encoding="utf-8")
+    subprocess.run(["launchctl", "unload", str(plist)], check=False)
+    _run_cmd(["launchctl", "load", str(plist)])
+
+
+def _install_windows_service() -> None:
+    data_path = install_dir() / ".nasri-data"
+    data_path.mkdir(parents=True, exist_ok=True)
+    ps = (
+        "$action = New-ScheduledTaskAction -Execute \"" + sys.executable + "\" -Argument \"-m nasri_agent.service\";"
+        "$trigger = New-ScheduledTaskTrigger -AtStartup;"
+        "$settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries;"
+        "[Environment]::SetEnvironmentVariable('NASRI_DATA_DIR','" + str(data_path) + "','User');"
+        "Register-ScheduledTask -TaskName \"NasriService\" -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -Force;"
+        "Start-ScheduledTask -TaskName \"NasriService\";"
+    )
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps], check=True)
+
+
+def install_service() -> None:
+    system = platform.system().lower()
+    if system == "linux":
+        _install_linux_service()
+        print("Nasri service installed via systemd.")
+        return
+    if system == "darwin":
+        _install_macos_service()
+        print("Nasri service installed via launchd.")
+        return
+    if system == "windows":
+        _install_windows_service()
+        print("Nasri service installed via Task Scheduler.")
+        return
+    raise RuntimeError(f"Desteklenmeyen platform: {system}")
+
+
+def uninstall_service() -> None:
+    system = platform.system().lower()
+    if system == "linux":
+        subprocess.run(["systemctl", "disable", "--now", "nasri.service"], check=False)
+        Path("/etc/systemd/system/nasri.service").unlink(missing_ok=True)
+        subprocess.run(["systemctl", "daemon-reload"], check=False)
+        return
+    if system == "darwin":
+        plist = Path.home() / "Library" / "LaunchAgents" / "com.nasri.service.plist"
+        subprocess.run(["launchctl", "unload", str(plist)], check=False)
+        plist.unlink(missing_ok=True)
+        return
+    if system == "windows":
+        subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Unregister-ScheduledTask -TaskName 'NasriService' -Confirm:$false",
+            ],
+            check=False,
+        )
+
+
+if __name__ == "__main__":
+    run_service()

@@ -2,9 +2,28 @@
 
 Bu repo 3 ana paketten oluşur:
 
-- `nasri-core`: FastAPI + Redis + LLM orkestrasyonu (backend)
+- `nasri-core`: FastAPI + Redis + LLM orkestrasyonu (backend + `nasri` CLI/service)
 - `nasri-ui`: Web arayüzü
 - `nasri-modules`: Ortak modüller / domain package'ları
+
+## Tek Komut Kurulum
+
+- Linux/macOS:
+  - `bash install.sh`
+- Windows (PowerShell):
+  - `powershell -ExecutionPolicy Bypass -File .\install.ps1`
+
+Kurulum sonrası servis otomatik kurulur ve açılışta yeniden ayağa kalkar.
+
+## Nasri Komutları
+
+- `nasri /status`
+- `nasri /version`
+- `nasri /help`
+
+`/status` çıktısı:
+
+- `Selamunaleyküm ben Nasrî`
 
 ## Klasör Yapısı
 
@@ -14,7 +33,7 @@ Bu repo 3 ana paketten oluşur:
 - `.github/workflows/`
 - `docs/`
 
-## Hızlı Başlangıç
+## Core Hızlı Başlangıç
 
 1. Python ortamı oluştur:
    - `python -m venv .venv`
@@ -44,12 +63,13 @@ Bu repo 3 ana paketten oluşur:
 
 Detay: `docs/BRANCH_STRATEGY.md`
 GitHub kurulum adımları: `docs/GITHUB_SETUP.md`
+Nasri kurulum/servis: `docs/NASRI_INSTALL_AND_SERVICE.md`
 
 ## GitHub Koruma Kuralları
 
 - `main` ve `develop` için branch protection açık olmalı
 - En az 1 PR review zorunlu
-- CI (`core-checks`) başarı zorunlu
+- CI (`core-checks`, `ui-checks`) başarı zorunlu
 - Doğrudan push kapalı
 
 ## Commit Konvansiyonu
