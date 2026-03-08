@@ -46,5 +46,5 @@ redis-data/
 postgres-data/
 
 # Ollama / local model artifacts
-ollama-data/
-models/
+/ollama-data/
+/models/
