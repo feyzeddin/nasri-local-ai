@@ -1,4 +1,5 @@
 from functools import lru_cache
+import hashlib
 import json
 import os
 
@@ -72,6 +73,15 @@ class Settings:
         self.piper_timeout_seconds: int = int(
             os.getenv("PIPER_TIMEOUT_SECONDS", "120")
         )
+        # F1.06 — Credential Vault (AES-256)
+        self.vault_master_key: str = os.getenv("NASRI_VAULT_MASTER_KEY", "").strip()
+        self.vault_key_id: str = os.getenv("NASRI_VAULT_KEY_ID", "v1").strip()
+
+    def vault_key_bytes(self) -> bytes:
+        """AES-256 için 32-byte anahtar türetir."""
+        if not self.vault_master_key:
+            raise ValueError("NASRI_VAULT_MASTER_KEY ayarlı değil.")
+        return hashlib.sha256(self.vault_master_key.encode("utf-8")).digest()
 
 
 @lru_cache

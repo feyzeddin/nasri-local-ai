@@ -7,5 +7,6 @@ pytest-asyncio==0.25.3
 respx==0.22.0
 httpx==0.28.1
 python-multipart==0.0.20
+cryptography==45.0.7
 fakeredis==2.28.1
 ruff==0.13.0
