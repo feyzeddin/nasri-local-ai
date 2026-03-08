@@ -263,6 +263,22 @@ class Settings:
         self.anomaly_sensitive_paths: str = os.getenv(
             "ANOMALY_SENSITIVE_PATHS", "/etc,/var/lib,/home,/root,C:\\Windows,C:\\Users"
         )
+        # F2.13 — Backup manager
+        self.backup_enabled: bool = os.getenv("BACKUP_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.backup_source_paths: str = os.getenv(
+            "BACKUP_SOURCE_PATHS", ".nasri-data,.nasri-rag,logs"
+        )
+        self.backup_output_dir: str = os.getenv("BACKUP_OUTPUT_DIR", ".nasri-backups")
+        self.backup_retention_count: int = int(os.getenv("BACKUP_RETENTION_COUNT", "7"))
+        self.backup_encrypt_enabled: bool = os.getenv(
+            "BACKUP_ENCRYPT_ENABLED", "1"
+        ) in {"1", "true", "True"}
+        self.backup_remote_target: str = os.getenv("BACKUP_REMOTE_TARGET", "").strip()
+        self.backup_remote_command: str = os.getenv("BACKUP_REMOTE_COMMAND", "").strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

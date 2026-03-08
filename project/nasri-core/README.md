@@ -93,3 +93,10 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /anomaly/ingest`
 - `GET /anomaly/alerts`
 - Ağ trafiği ve dosya erişimi olayları için eşik tabanlı anomali tespiti ve uyarı üretimi
+
+## Backup Manager
+
+- `POST /backup/run`
+- `GET /backup/history`
+- Kaynak yolları arşivlenir, opsiyonel AES ile şifrelenir ve yerel backup dizinine yazılır
+- Retention sayısına göre eski yedekler otomatik temizlenir
