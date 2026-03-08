@@ -53,6 +53,9 @@ class Settings:
                 "operator": {"password": "operator", "role": "operator"},
                 "viewer": {"password": "viewer", "role": "viewer"},
             }
+        # F1.11 — Dosya yönetimi güvenli kök dizin
+        self.files_root: str = os.getenv("NASRI_FILES_ROOT", os.getcwd())
+        self.files_max_results: int = int(os.getenv("NASRI_FILES_MAX_RESULTS", "200"))
 
 
 @lru_cache

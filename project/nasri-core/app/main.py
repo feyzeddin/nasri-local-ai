@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
+from app.api.files import router as files_router
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
 
@@ -27,6 +28,7 @@ def _create_app() -> FastAPI:
         dependencies=[Depends(verify_api_key), Depends(rate_limit)],
     )
     application.include_router(auth_router)
+    application.include_router(files_router)
 
     @application.get("/health")
     def health() -> dict[str, str]:
