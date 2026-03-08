@@ -11,6 +11,7 @@ from app.api.identity import router as identity_router
 from app.api.rag import router as rag_router
 from app.api.memory import router as memory_router
 from app.api.planner import router as planner_router
+from app.api.model_router import router as model_router_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -47,6 +48,7 @@ def _create_app() -> FastAPI:
     application.include_router(rag_router)
     application.include_router(memory_router)
     application.include_router(planner_router)
+    application.include_router(model_router_router)
 
     @application.get("/health")
     def health() -> dict[str, str]:

@@ -38,3 +38,9 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 ## Planner (ReAct)
 
 - `POST /planner/run` (goal + profile_id ile ReAct tarzı adım planı üretir)
+
+## Model Router (3 katman)
+
+- `POST /model-router/chat`
+- Katman sırası: `local -> free -> paid` (env ile değiştirilebilir)
+- Bir katman hata verirse bir sonraki katmana otomatik fallback yapılır

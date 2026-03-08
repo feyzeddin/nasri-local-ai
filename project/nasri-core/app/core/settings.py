@@ -97,6 +97,34 @@ class Settings:
         self.memory_default_top_k: int = int(os.getenv("MEMORY_DEFAULT_TOP_K", "5"))
         # F2.03 — Planner (ReAct)
         self.planner_max_steps: int = int(os.getenv("PLANNER_MAX_STEPS", "6"))
+        # F2.04 — Model Router (local -> free -> paid)
+        self.model_router_tier_order: str = os.getenv(
+            "MODEL_ROUTER_TIER_ORDER", "local,free,paid"
+        )
+        self.model_router_free_enabled: bool = os.getenv(
+            "MODEL_ROUTER_FREE_ENABLED", "1"
+        ) in {"1", "true", "True"}
+        self.model_router_free_api_url: str = os.getenv(
+            "MODEL_ROUTER_FREE_API_URL", ""
+        ).strip()
+        self.model_router_free_api_key: str = os.getenv(
+            "MODEL_ROUTER_FREE_API_KEY", ""
+        ).strip()
+        self.model_router_free_model: str = os.getenv(
+            "MODEL_ROUTER_FREE_MODEL", ""
+        ).strip()
+        self.model_router_paid_enabled: bool = os.getenv(
+            "MODEL_ROUTER_PAID_ENABLED", "0"
+        ) in {"1", "true", "True"}
+        self.model_router_paid_api_url: str = os.getenv(
+            "MODEL_ROUTER_PAID_API_URL", ""
+        ).strip()
+        self.model_router_paid_api_key: str = os.getenv(
+            "MODEL_ROUTER_PAID_API_KEY", ""
+        ).strip()
+        self.model_router_paid_model: str = os.getenv(
+            "MODEL_ROUTER_PAID_MODEL", ""
+        ).strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
