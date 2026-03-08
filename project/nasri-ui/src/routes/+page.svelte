@@ -1,29 +1,25 @@
-<script lang="ts">
+<script>
   import { onMount } from "svelte";
   import {
     fetchDevices,
     fetchHealthReady,
     fetchLogs,
     fetchMaintenanceStatus,
-    sendChat,
-    type ChatPayload,
-    type HealthReady,
-    type MaintenanceStatus,
-    type NetworkDevice,
+    sendChat
   } from "$lib/api";
 
-  let health: HealthReady | null = null;
-  let devices: NetworkDevice[] = [];
-  let logs: string[] = [];
-  let maintenance: MaintenanceStatus | null = null;
+  let health = null;
+  let devices = [];
+  let logs = [];
+  let maintenance = null;
   let loading = true;
-  let errors: string[] = [];
+  let errors = [];
 
   let sessionId = "";
   let message = "";
-  let replies: { role: "user" | "assistant"; text: string }[] = [];
+  let replies = [];
   let sending = false;
-  let installPrompt: Event | null = null;
+  let installPrompt = null;
   let installReady = false;
   let notificationState = "default";
   let listening = false;
@@ -61,7 +57,7 @@
     replies = [...replies, { role: "user", text }];
     message = "";
     try {
-      const data: ChatPayload = await sendChat(text, sessionId || undefined);
+      const data = await sendChat(text, sessionId || undefined);
       sessionId = data.session_id;
       replies = [...replies, { role: "assistant", text: data.reply }];
     } catch (e) {
@@ -72,7 +68,7 @@
   }
 
   async function installApp() {
-    const prompt = installPrompt as (Event & { prompt?: () => Promise<void>; userChoice?: Promise<{ outcome: string }> }) | null;
+    const prompt = installPrompt;
     if (!prompt?.prompt) return;
     await prompt.prompt();
     installPrompt = null;
@@ -86,14 +82,14 @@
   }
 
   function startVoiceInput() {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     const rec = new SpeechRecognition();
     rec.lang = "tr-TR";
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     listening = true;
-    rec.onresult = (ev: any) => {
+    rec.onresult = (ev) => {
       const txt = ev.results?.[0]?.[0]?.transcript || "";
       message = String(txt);
       listening = false;

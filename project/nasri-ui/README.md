@@ -5,6 +5,7 @@ SvelteKit tabanlı Nasri dashboard uygulaması.
 ## Özellikler
 
 - Sohbet paneli (`/chat`)
+- Landing sayfası (`/landing`)
 - Sistem durumu paneli (`/health/ready`, `/maintenance/status`)
 - Cihaz listesi (`/network/discover`)
 - Log görüntüleyici (`/files/list`)

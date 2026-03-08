@@ -51,6 +51,8 @@ Kurulum sonrası servis otomatik kurulur ve açılışta yeniden ayağa kalkar.
    - `cd nasri-ui && npm install`
 2. UI geliştirme sunucusu:
    - `npm run dev`
+3. Landing sayfası:
+   - `http://localhost:5173/landing`
 
 ## Branch Stratejisi (Özet)
 
