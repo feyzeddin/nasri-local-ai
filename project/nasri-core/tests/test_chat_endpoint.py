@@ -1,7 +1,7 @@
 """POST /chat ve POST /chat/stream endpoint testleri.
 
-OllamaClient monkeypatch ile sahte yanıt döndürür;
-gerçek Ollama sunucusu gerekmez.
+OllamaClient ve Redis fonksiyonları monkeypatch ile sahte yanıt döndürür;
+gerçek Ollama veya Redis sunucusu gerekmez.
 """
 
 from __future__ import annotations
@@ -9,11 +9,23 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
+import fakeredis.aioredis as fakeredis
+import pytest
 from fastapi.testclient import TestClient
 
+import app.core.redis as redis_module
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def fake_redis(monkeypatch):
+    """Tüm testlerde Redis'i fakeredis ile değiştirir."""
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    monkeypatch.setattr(redis_module, "get_redis", lambda: fake)
+    return fake
+
 
 # ---------------------------------------------------------------------------
 # Yardımcılar
