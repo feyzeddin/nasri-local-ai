@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nasrî — Açık Kaynak Ekosistem Analizi</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Georgia, serif;
+    background: linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #0a1628 100%);
+    min-height: 100vh;
+    color: #e8edf5;
+  }
+  .header {
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid rgba(46,109,180,0.3);
+    padding: 28px 40px 20px;
+    backdrop-filter: blur(10px);
+  }
+  .header .eyebrow { font-size: 11px; color: #6B8BAE; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; }
+  .header h1 { font-size: 28px; font-weight: bold; color: #fff; letter-spacing: -0.5px; }
+  .header .subtitle { font-size: 14px; color: #8AABCC; margin-top: 6px; }
+  .container { padding: 32px 40px; max-width: 1200px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 32px; border-bottom: 1px solid rgba(46,109,180,0.2); }
+  .tab-btn {
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    color: #556B8A; padding: 10px 20px; font-size: 13px; cursor: pointer;
+    letter-spacing: 1px; text-transform: uppercase; font-family: Georgia, serif;
+    margin-bottom: -1px; transition: all 0.2s;
+  }
+  .tab-btn.active { background: rgba(46,109,180,0.25); border-bottom: 2px solid #2E6DB4; color: #7BAADF; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Cards */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+  .card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 20px 22px; cursor: pointer; transition: all 0.2s;
+  }
+  .card:hover { background: rgba(255,255,255,0.07); }
+  .card.open { border-color: rgba(46,109,180,0.4); }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .card-name { font-size: 18px; font-weight: bold; color: #fff; }
+  .card-aka { font-size: 11px; color: #6B8BAE; margin-top: 2px; }
+  .card-badge { border-radius: 20px; padding: 3px 10px; font-size: 11px; }
+  .card-desc { font-size: 13px; color: #9AAFCC; line-height: 1.6; margin-bottom: 14px; }
+  .overlap-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .overlap-text { font-size: 11px; color: #6B8BAE; letter-spacing: 1px; text-transform: uppercase; }
+  .overlap-bar-bg { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-bottom: 14px; }
+  .overlap-bar { height: 100%; border-radius: 2px; transition: width 0.5s; }
+  .meta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .meta span { font-size: 11px; color: #556B8A; }
+  .detail { margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); display: none; }
+  .detail.open { display: block; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .detail-label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .detail-item { font-size: 12px; line-height: 1.5; margin-bottom: 5px; padding-left: 12px; border-left-width: 2px; border-left-style: solid; }
+
+  /* Comparison table */
+  .comp-table { width: 100%; border-collapse: collapse; font-size: 12px; overflow-x: auto; display: block; }
+  .comp-table th, .comp-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; }
+  .comp-table thead th { color: #6B8BAE; font-weight: normal; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid rgba(46,109,180,0.3); }
+  .comp-table thead th.nasri-col { color: #7BAADF; font-weight: bold; background: rgba(46,109,180,0.15); border-bottom: 2px solid #2E6DB4; }
+  .comp-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+  .comp-table td:first-child { color: #9AAFCC; text-align: left; }
+  .comp-table td { text-align: center; }
+  .comp-table td.nasri-col { background: rgba(46,109,180,0.08); border-bottom: 1px solid rgba(46,109,180,0.15); }
+  .check-yes { color: #4CAF82; font-size: 16px; }
+  .check-partial { color: #C8960A; }
+  .check-no { color: #3A4A5A; }
+  .comp-legend { margin-top: 16px; font-size: 11px; color: #4A6A8A; }
+
+  /* Diff tab */
+  .quote-box { margin-bottom: 32px; padding: 20px 24px; background: rgba(46,109,180,0.08); border: 1px solid rgba(46,109,180,0.2); border-radius: 10px; }
+  .quote-text { font-size: 14px; color: #7BAADF; margin-bottom: 12px; font-style: italic; }
+  .quote-sub { font-size: 12px; color: #6B8BAE; }
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  .diff-section-label { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+  .feat-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; padding: 10px 14px; background: rgba(30,122,64,0.08); border: 1px solid rgba(30,122,64,0.15); border-radius: 8px; }
+  .feat-bullet { color: #4CAF82; font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+  .feat-text { font-size: 13px; color: #9AAFCC; line-height: 1.5; }
+  .borrow-item { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+  .borrow-from { font-size: 11px; font-weight: bold; min-width: 80px; margin-top: 2px; flex-shrink: 0; }
+  .borrow-what { font-size: 12px; color: #8AABCC; line-height: 1.5; }
+  .warning-box { margin-top: 24px; padding: 16px; background: rgba(200,150,10,0.08); border: 1px solid rgba(200,150,10,0.2); border-radius: 8px; }
+  .warning-label { font-size: 11px; color: #C8960A; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .warning-text { font-size: 12px; color: #9A8A6A; line-height: 1.6; }
+  .matrix-box { padding: 20px 24px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; }
+  .matrix-label { font-size: 13px; color: #6B8BAE; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
+  .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .matrix-item { padding: 14px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; }
+  .matrix-q { font-size: 12px; color: #7BAADF; margin-bottom: 6px; }
+  .matrix-who { font-size: 11px; color: #4A6A8A; margin-bottom: 6px; }
+  .matrix-nasri { font-size: 11px; color: #4CAF82; }
+
+  @media (max-width: 700px) {
+    .container { padding: 20px 16px; }
+    .header { padding: 20px 16px; }
+    .diff-grid { grid-template-columns: 1fr; }
+    .matrix-grid { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="eyebrow">Rekabet İstihbarat Raporu — Mart 2026</div>
+  <h1>Nasrî — Açık Kaynak Ekosistem Analizi</h1>
+  <div class="subtitle">Benzer ve örtüşen 6 açık kaynak proje · Güçlü/zayıf taraf karşılaştırması · Nasrî'nin farklılaşma haritası</div>
+</div>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('overview')">Proje Kartları</button>
+    <button class="tab-btn" onclick="switchTab('comparison')">Özellik Karşılaştırma</button>
+    <button class="tab-btn" onclick="switchTab('differentiation')">Nasrî Farklılaşması</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview" class="tab-panel active">
+    <div class="cards-grid" id="cards-container"></div>
+  </div>
+
+  <!-- COMPARISON -->
+  <div id="tab-comparison" class="tab-panel">
+    <div style="overflow-x:auto">
+    <table class="comp-table">
+      <thead>
+        <tr>
+          <th style="text-align:left; min-width:200px">Özellik</th>
+          <th class="nasri-col">Nasrî</th>
+          <th>OpenClaw</th>
+          <th>AIlice</th>
+          <th>Home Assistant</th>
+          <th>LocalAI+AGI</th>
+          <th>Agent Zero</th>
+          <th>Jarvis (isair)</th>
+        </tr>
+      </thead>
+      <tbody id="comp-tbody"></tbody>
+    </table>
+    </div>
+    <div class="comp-legend">✓ Tam destek &nbsp;|&nbsp; ~ Kısmi/Planlanmış &nbsp;|&nbsp; – Yok/Dışında</div>
+  </div>
+
+  <!-- DIFFERENTIATION -->
+  <div id="tab-differentiation" class="tab-panel">
+    <div class="quote-box">
+      <div class="quote-text">"Nasrî, bu ekosistemde tek başına tam dikey entegrasyonu hedefleyen projedir — yerel AI + IoT + sistem yönetimi + yazılım geliştirme + sıfır konfigürasyon bir arada."</div>
+      <div class="quote-sub">Bu kombinasyonu sunan başka bir açık kaynak proje bulunmuyor.</div>
+    </div>
+    <div class="diff-grid">
+      <div>
+        <div class="diff-section-label" style="color:#4CAF82">Nasrî'nin Özel Avantajları</div>
+        <div id="features-list"></div>
+      </div>
+      <div>
+        <div class="diff-section-label" style="color:#7BAADF">Açık Kaynak'tan Alınabilecek En İyi Parçalar</div>
+        <div id="borrow-list"></div>
+        <div class="warning-box">
+          <div class="warning-label">⚠ Dikkat: OpenClaw Riski</div>
+          <div class="warning-text">OpenClaw, 214K yıldızla en hızlı büyüyen rakiptir. Ancak non-teknik kullanıcı için kurulum hâlâ zor, IoT entegrasyonu yok, token maliyeti yüksek (günde $300'a kadar). Nasrî'nin zero-config + Türkçe + IoT odağı bu boşluğu doldurabilir.</div>
+        </div>
+      </div>
+    </div>
+    <div class="matrix-box">
+      <div class="matrix-label">Pazar Konumlandırma Matrisi</div>
+      <div class="matrix-grid" id="matrix-grid"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const projects = [
+  {
+    name: "OpenClaw",
+    aka: "eski adı: Clawdbot / Moltbot",
+    stars: "214K ⭐",
+    license: "MIT",
+    lang: "Python / TypeScript",
+    updated: "Şubat 2026",
+    desc: "Kendi donanımında çalışan, WhatsApp/Telegram üzerinden mesaj alıp gerçek eylemler gerçekleştiren otonom AI asistanı. Uçuş rezervasyonu, e-posta yönetimi, dosya işlemleri yapabiliyor.",
+    strengths: ["Mesajlaşma uygulamaları üzerinden komut (WhatsApp, Telegram)", "Kalıcı bellek — 'asla unutmaz'", "Görev otomasyonu: e-posta, takvim, DevOps", "Viral büyüme: 24 saatte 9K yıldız"],
+    weaknesses: ["Teknik kurulum karmaşık — non-teknik kullanıcı için zor", "'Day 2 wall' sorunu: ilk heyecan sonrası kullanım düşüyor", "Token maliyeti yüksek; günlük $300'a kadar çıkabiliyor", "IoT ve yerel LLM entegrasyonu zayıf"],
+    overlap: 72,
+    category: "Otonom Kişisel Asistan",
+    color: "#E8732A",
+  },
+  {
+    name: "AIlice",
+    aka: "by MyShell.ai",
+    stars: "~8K ⭐",
+    license: "Apache 2.0",
+    lang: "Python",
+    updated: "Ağustos 2025",
+    desc: "JARVIS benzeri tam otonom genel amaçlı AI ajanı. IACT (Interactive Agents Call Tree) mimarisiyle karmaşık görevleri dinamik alt-ajanlara böler. Yerel LLM desteği var.",
+    strengths: ["IACT mimarisi — Nasrî Planner modülüne en yakın konsept", "Yerel LLM öncelikli (Ollama, llama.cpp)", "Ses diyaloğu (ChatTTS entegrasyonu)", "Kendini genişletme / dinamik modül oluşturma hedefi"],
+    weaknesses: ["IoT / akıllı ev entegrasyonu yok", "Zero-config değil — teknik bilgi gerektirir", "Türkçe dil desteği yok", "Donanım yönetimi ve sistem bakımı kapsam dışında"],
+    overlap: 68,
+    category: "Otonom AI Ajanı",
+    color: "#2E6DB4",
+  },
+  {
+    name: "Home Assistant",
+    aka: "Open Home Foundation",
+    stars: "75K+ ⭐",
+    license: "Apache 2.0",
+    lang: "Python",
+    updated: "Sürekli aktif",
+    desc: "Milyonlarca kullanıcısıyla dünyanın en büyük açık kaynak akıllı ev platformu. Raspberry Pi'de çalışır. 2024'ten itibaren AI ajan desteği (LLM ile doğal dil kontrolü) eklendi.",
+    strengths: ["3000+ cihaz entegrasyonu (Zigbee, Z-Wave, Matter, MQTT)", "Devasa ekosistem ve topluluk", "Gerçek yerel kontrol ve gizlilik", "Güçlü otomasyon motoru"],
+    weaknesses: ["AI asistan değil — otomasyon platformu; sohbet/görev mantığı sınırlı", "Kendi kendini geliştirme yok", "Dosya yönetimi, araştırma, kod yazma dışında", "Kurulumu hâlâ teknik gerektiriyor"],
+    overlap: 40,
+    category: "Akıllı Ev Platformu",
+    color: "#1E7A40",
+  },
+  {
+    name: "LocalAI + LocalAGI",
+    aka: "mudler / localai.io",
+    stars: "~28K ⭐",
+    license: "MIT",
+    lang: "Go / Python",
+    updated: "Ocak 2026",
+    desc: "OpenAI API'sinin yerel muadili + ajan kapabiliteleri. LLM çıkarımı, görsel, ses, P2P dağıtık çıkarım. LocalAGI eklentisiyle otonom ajan yetenekleri.",
+    strengths: ["GPU gerektirmez — tüketici donanımında çalışır", "P2P ve federe mod (ağdaki cihazların işlem gücünü kullanma)", "OpenAI API uyumlu — mevcut araçlarla doğrudan entegre", "MCP protokolü desteği"],
+    weaknesses: ["Kullanıcı arayüzü zayıf — geliştirici odaklı", "IoT ve akıllı ev entegrasyonu yok", "Zero-config değil", "Ajan yetenekleri ayrı kurulum gerektirir"],
+    overlap: 55,
+    category: "Yerel AI Altyapısı",
+    color: "#5B2D8E",
+  },
+  {
+    name: "Agent Zero",
+    aka: "frdel/agent-zero",
+    stars: "~12K ⭐",
+    license: "MIT",
+    lang: "Python",
+    updated: "2025 sonu",
+    desc: "Kendi bilgisayarında çalışan, araç kullanan, kendini düzelten ve karmaşık iş akışlarını tam şeffaflıkla yürüten otonom AI ajanı.",
+    strengths: ["Gerçek bilgisayar kontrolü — terminal, dosya, web", "Şeffaf planlama ve yürütme adımları", "Yerel LLM desteği (Ollama)", "Kendini düzeltme (self-correction) mekanizması"],
+    weaknesses: ["IoT/akıllı ev yok", "Zero-config değil", "Kripto/token ekonomisi tartışmalı yan kol", "Kurumsal/ticari odağı belirsiz"],
+    overlap: 58,
+    category: "Otonom Bilgisayar Ajanı",
+    color: "#C8960A",
+  },
+  {
+    name: "Jarvis (isair)",
+    aka: "github.com/isair/jarvis",
+    stars: "Yeni / Az",
+    license: "MIT",
+    lang: "Python",
+    updated: "2025",
+    desc: "7/24 çalışan, tamamen özel, bulut-bağımsız kişisel AI asistanı. Kalıcı bellek, MCP sunucuları aracılığıyla ev otomasyonu dahil araç entegrasyonu.",
+    strengths: ["Tamamen yerel ve özel — veri hiç çıkmaz", "Kalıcı bellek — tercihleri öğrenir", "MCP entegrasyonu — ev otomasyonu dahil", "Abonelik yok, bulut yok"],
+    weaknesses: ["Çok yeni ve küçük topluluk", "Zero-config değil", "IoT protokol desteği MCP bağımlı, sınırlı", "Türkçe dil desteği yok"],
+    overlap: 65,
+    category: "Yerel Kişisel Asistan",
+    color: "#1B6BAE",
+  },
+];
+
+const compRows = [
+  ["Zero-config kurulum",         true,  false, false, false, false, false, false],
+  ["Türkçe dil desteği",          true,  false, false, false, false, false, false],
+  ["Yerel LLM öncelikli",         true,  true,  true,  false, true,  true,  true ],
+  ["Sesli iletişim (STT+TTS)",    true,  false, true,  false, false, false, true ],
+  ["IoT / Akıllı Ev",             true,  false, false, true,  false, false, false],
+  ["Zigbee / Matter / Z-Wave",    true,  false, false, true,  false, false, false],
+  ["Ağ cihaz keşfi",              true,  false, false, "~",   false, false, false],
+  ["Dosya yönetimi",              true,  true,  true,  false, false, true,  true ],
+  ["Web araştırması",             true,  false, true,  false, false, true,  false],
+  ["Kod üretme / geliştirme",     true,  true,  true,  false, false, true,  false],
+  ["Sistem bakımı / öz onarım",   true,  false, false, false, false, false, false],
+  ["Kalıcı bellek",               true,  true,  true,  false, false, true,  true ],
+  ["3 katmanlı AI yönlendirme",   true,  false, false, false, false, false, false],
+  ["Federasyon / P2P",            "~",   false, false, false, true,  false, false],
+  ["Donanım kimliği güvenliği",   true,  false, false, false, false, false, false],
+  ["MCP protokolü",               true,  false, false, false, true,  true,  true ],
+  ["KVKK / Gizlilik politikası",  true,  false, false, "~",   false, false, false],
+];
+
+const nasriFeatures = [
+  "Zero-config kurulum (tek komut)",
+  "Türkçe yerel ses tanıma (Whisper)",
+  "IoT + akıllı ev (Zigbee, Matter, Z-Wave)",
+  "Yazılım geliştirme modülü (kod üret, test et, deploy et)",
+  "Ağ cihazı oto-keşif + sahiplik tahmini",
+  "Donanım kimliği + biyometrik güvenlik",
+  "Yerel AI öncelikli (3 katmanlı model yönlendirme)",
+  "Öz onarım ve periyodik sistem bakımı",
+  "Ağdaki güçlü cihazları işlem için kullan (federasyon temeli)",
+  "Kendi kendini geliştirme döngüsü",
+];
+
+const borrowItems = [
+  { from: "Home Assistant", what: "IoT protokol entegrasyonları (3000+ cihaz adaptörü)", color: "#1E7A40" },
+  { from: "AIlice",         what: "IACT dinamik ajan ağacı mimarisi — Planner modülüne referans", color: "#2E6DB4" },
+  { from: "LocalAI",        what: "P2P / federe çıkarım — ağdaki cihaz gücünü kullan", color: "#5B2D8E" },
+  { from: "OpenClaw",       what: "Mesajlaşma köprüsü (WhatsApp/Telegram) ek kanal olarak", color: "#E8732A" },
+  { from: "Agent Zero",     what: "Şeffaf planlama adımları — kullanıcıya gösterim UX'i", color: "#C8960A" },
+  { from: "Jarvis (isair)", what: "MCP sunucu entegrasyon şablonları", color: "#1B6BAE" },
+];
+
+const matrixItems = [
+  { q: "Teknik kullanıcı + Geniş AI ajan", who: "AIlice, Agent Zero, AutoGPT", nasri: "Fırsat: aynı gücü sıradan kullanıcıya sunmak" },
+  { q: "Akıllı ev odaklı", who: "Home Assistant, openHAB, Gladys", nasri: "Fırsat: AI asistanı akıllı eve entegre etmek" },
+  { q: "Geliştirici odaklı ajan", who: "Cline, OpenDevin, Devin", nasri: "Örtüşme az — Nasrî daha geniş odak" },
+  { q: "Sıradan kullanıcı + Zero-config + TR", who: "Kimse bu kombinasyonu sunmuyor", nasri: "← Nasrî'nin ana hedef segmenti" },
+];
+
+// ── Render Cards ──────────────────────────────────────────────────────────
+const container = document.getElementById('cards-container');
+projects.forEach((p, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-head">
+      <div>
+        <div class="card-name">${p.name}</div>
+        <div class="card-aka">${p.aka}</div>
+      </div>
+      <div class="card-badge" style="background:${p.color}22; border:1px solid ${p.color}55; color:${p.color}">${p.category}</div>
+    </div>
+    <div class="card-desc">${p.desc}</div>
+    <div class="overlap-label">
+      <span class="overlap-text">Nasrî ile Örtüşme</span>
+      <span style="font-size:13px; color:${p.color}; font-weight:bold">%${p.overlap}</span>
+    </div>
+    <div class="overlap-bar-bg">
+      <div class="overlap-bar" style="width:${p.overlap}%; background:linear-gradient(90deg, ${p.color}88, ${p.color})"></div>
+    </div>
+    <div class="meta">
+      <span>⭐ ${p.stars}</span>
+      <span>📄 ${p.license}</span>
+      <span>🔧 ${p.lang}</span>
+      <span>🕐 ${p.updated}</span>
+    </div>
+    <div class="detail" id="detail-${i}">
+      <div class="detail-grid">
+        <div>
+          <div class="detail-label" style="color:#1E7A40">✓ Güçlü Tarafları</div>
+          ${p.strengths.map(s => `<div class="detail-item" style="color:#8FCCA0; border-left-color:#1E7A4044">${s}</div>`).join('')}
+        </div>
+        <div>
+          <div class="detail-label" style="color:#B83232">✗ Zayıf Tarafları</div>
+          ${p.weaknesses.map(w => `<div class="detail-item" style="color:#CC8888; border-left-color:#B8323244">${w}</div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center; margin-top:14px; font-size:11px; color:#4A6A8A" id="toggle-${i}">▼ Detayları göster</div>
+  `;
+  card.onclick = function() {
+    const d = document.getElementById('detail-' + i);
+    const t = document.getElementById('toggle-' + i);
+    const isOpen = d.classList.contains('open');
+    d.classList.toggle('open');
+    card.classList.toggle('open');
+    t.textContent = isOpen ? '▼ Detayları göster' : '▲ Kapat';
+  };
+  container.appendChild(card);
+});
+
+// ── Render Comparison Table ───────────────────────────────────────────────
+const tbody = document.getElementById('comp-tbody');
+compRows.forEach((row, ri) => {
+  const [feat, nasri, ...vals] = row;
+  const bg = ri % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent';
+  const cell = v => {
+    if (v === true)  return '<span class="check-yes">✓</span>';
+    if (v === "~")   return '<span class="check-partial">~</span>';
+    return '<span class="check-no">–</span>';
+  };
+  tbody.innerHTML += `
+    <tr style="background:${bg}">
+      <td>${feat}</td>
+      <td class="nasri-col">${cell(nasri)}</td>
+      ${vals.map(v => `<td>${cell(v)}</td>`).join('')}
+    </tr>`;
+});
+
+// ── Render Features ───────────────────────────────────────────────────────
+const fl = document.getElementById('features-list');
+nasriFeatures.forEach(f => {
+  fl.innerHTML += `
+    <div class="feat-item">
+      <span class="feat-bullet">◆</span>
+      <span class="feat-text">${f}</span>
+    </div>`;
+});
+
+// ── Render Borrow List ────────────────────────────────────────────────────
+const bl = document.getElementById('borrow-list');
+borrowItems.forEach(item => {
+  bl.innerHTML += `
+    <div class="borrow-item" style="border:1px solid ${item.color}33">
+      <span class="borrow-from" style="color:${item.color}">${item.from}</span>
+      <span class="borrow-what">${item.what}</span>
+    </div>`;
+});
+
+// ── Render Matrix ─────────────────────────────────────────────────────────
+const mg = document.getElementById('matrix-grid');
+matrixItems.forEach(item => {
+  mg.innerHTML += `
+    <div class="matrix-item">
+      <div class="matrix-q">${item.q}</div>
+      <div class="matrix-who">Rakipler: ${item.who}</div>
+      <div class="matrix-nasri">${item.nasri}</div>
+    </div>`;
+});
+
+// ── Tab Switch ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.getAttribute('onclick').includes(name)) b.classList.add('active');
+  });
+}
+</script>
+</body>
+</html>

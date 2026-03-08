@@ -1,0 +1,50 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing / cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# FastAPI / app temp
+tmp/
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker
+docker-data/
+redis-data/
+postgres-data/
+
+# Ollama / local model artifacts
+ollama-data/
+models/
