@@ -290,6 +290,16 @@ class Settings:
         ) in {"1", "true", "True"}
         # F3.01 — Code generator
         self.codegen_output_root: str = os.getenv("CODEGEN_OUTPUT_ROOT", ".nasri-codegen")
+        # F3.04 — Zigbee/Z-Wave bridge (zigbee2mqtt)
+        self.zigbee_enabled: bool = os.getenv("ZIGBEE_ENABLED", "0") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.zigbee2mqtt_api_url: str = os.getenv(
+            "ZIGBEE2MQTT_API_URL", "http://localhost:8080"
+        ).strip()
+        self.zigbee2mqtt_api_key: str = os.getenv("ZIGBEE2MQTT_API_KEY", "").strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

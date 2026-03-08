@@ -112,3 +112,11 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /codegen/generate`
 - Gereksinim + dil/framework seçimine göre başlangıç proje iskeleti üretir
 - Üretilen dosyalar `CODEGEN_OUTPUT_ROOT` altında saklanır
+
+## Zigbee Bridge
+
+- `GET /zigbee/status`
+- `GET /zigbee/devices`
+- `POST /zigbee/permit-join`
+- `POST /zigbee/action`
+- zigbee2mqtt HTTP API üzerinden cihaz eşleştirme ve temel komut akışı sağlar
