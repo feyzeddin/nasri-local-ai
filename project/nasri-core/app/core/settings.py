@@ -187,6 +187,10 @@ class Settings:
         self.lan_scan_mdns_enabled: bool = os.getenv(
             "LAN_SCAN_MDNS_ENABLED", "1"
         ) in {"1", "true", "True"}
+        # F2.07 — SSH remote management
+        self.ssh_connect_timeout_seconds: int = int(
+            os.getenv("SSH_CONNECT_TIMEOUT_SECONDS", "15")
+        )
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

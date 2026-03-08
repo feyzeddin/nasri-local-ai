@@ -58,3 +58,11 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `nmap -sn` ile ağdaki aktif cihazlar bulunur
 - Opsiyonel `mDNS` keşfi ile hostname zenginleştirmesi yapılır
 - Cihazlar için basit sahiplik tahmini (`likely_owned`, `possible_owned`, `unknown`) üretilir
+
+## SSH Uzak Cihaz Yönetimi
+
+- `POST /ssh/profiles` (profil + güvenli credential saklama)
+- `GET /ssh/profiles/{profile_name}`
+- `DELETE /ssh/profiles/{profile_name}`
+- `POST /ssh/exec` (uzak komut çalıştırma)
+- `POST /ssh/upload` ve `POST /ssh/download` (SFTP dosya transferi)
