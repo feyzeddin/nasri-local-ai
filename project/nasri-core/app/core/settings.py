@@ -17,6 +17,8 @@ class Settings:
         self.max_history_pairs = int(os.getenv("MAX_HISTORY_PAIRS", "10"))
         # Redis'te oturum key'inin geçerlilik süresi (saniye), varsayılan 1 saat
         self.session_ttl_seconds = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
+        # Nasri'nin kişiliğini ve görev kapsamını tanımlayan sistem mesajı
+        self.system_prompt: str | None = os.getenv("NASRI_SYSTEM_PROMPT") or None
 
 
 @lru_cache
