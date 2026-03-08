@@ -76,6 +76,13 @@ class Settings:
         # F1.06 — Credential Vault (AES-256)
         self.vault_master_key: str = os.getenv("NASRI_VAULT_MASTER_KEY", "").strip()
         self.vault_key_id: str = os.getenv("NASRI_VAULT_KEY_ID", "v1").strip()
+        # F1.08 — Cihaz kimliği + biyometrik eşleştirme temeli
+        self.device_fingerprint_salt: str = os.getenv(
+            "NASRI_DEVICE_FINGERPRINT_SALT", "nasri-device-salt"
+        ).strip()
+        self.biometric_salt: str = os.getenv(
+            "NASRI_BIOMETRIC_SALT", "nasri-biometric-salt"
+        ).strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

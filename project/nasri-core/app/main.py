@@ -7,6 +7,7 @@ from app.api.files import router as files_router
 from app.api.onboarding import router as onboarding_router
 from app.api.speech import router as speech_router
 from app.api.vault import router as vault_router
+from app.api.identity import router as identity_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -39,6 +40,7 @@ def _create_app() -> FastAPI:
     application.include_router(files_router)
     application.include_router(onboarding_router)
     application.include_router(vault_router)
+    application.include_router(identity_router)
 
     @application.get("/health")
     def health() -> dict[str, str]:
