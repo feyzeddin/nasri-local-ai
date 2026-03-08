@@ -16,9 +16,11 @@ from app.api.external_ai import router as external_ai_router
 from app.api.network import router as network_router
 from app.api.ssh import router as ssh_router
 from app.api.home_automation import router as home_automation_router
+from app.api.maintenance import router as maintenance_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
+from app.workers.maintenance import start_maintenance_worker, stop_maintenance_worker
 
 
 def _create_app() -> FastAPI:
@@ -57,6 +59,15 @@ def _create_app() -> FastAPI:
     application.include_router(network_router)
     application.include_router(ssh_router)
     application.include_router(home_automation_router)
+    application.include_router(maintenance_router)
+
+    @application.on_event("startup")
+    async def _startup_maintenance() -> None:
+        start_maintenance_worker()
+
+    @application.on_event("shutdown")
+    async def _shutdown_maintenance() -> None:
+        await stop_maintenance_worker()
 
     @application.get("/health")
     def health() -> dict[str, str]:

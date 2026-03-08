@@ -72,3 +72,10 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /home-automation/command`
 - Doğal dil komutlarını temel aksiyonlara çevirir (`turn_on`, `turn_off`, `set_temperature`)
 - `mode=auto` ise önce Home Assistant, başarısızsa MQTT fallback uygulanır
+
+## Sistem Bakım Otomasyonu
+
+- `GET /maintenance/status`
+- `POST /maintenance/run`
+- Disk kullanım raporu, log temizliği ve opsiyonel sistem güncellemesi adımlarını içerir
+- Arka planda periyodik worker ile due olduğunda otomatik tetiklenir

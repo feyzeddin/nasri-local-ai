@@ -212,6 +212,26 @@ class Settings:
         self.mqtt_username: str = os.getenv("MQTT_USERNAME", "").strip()
         self.mqtt_password: str = os.getenv("MQTT_PASSWORD", "").strip()
         self.mqtt_topic_prefix: str = os.getenv("MQTT_TOPIC_PREFIX", "nasri").strip()
+        # F2.09 — Sistem bakım otomasyonu
+        self.maintenance_enabled: bool = os.getenv("MAINTENANCE_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.maintenance_interval_hours: int = int(
+            os.getenv("MAINTENANCE_INTERVAL_HOURS", "24")
+        )
+        self.maintenance_log_dirs: str = os.getenv("MAINTENANCE_LOG_DIRS", "logs,tmp")
+        self.maintenance_log_retention_days: int = int(
+            os.getenv("MAINTENANCE_LOG_RETENTION_DAYS", "14")
+        )
+        self.maintenance_auto_update_enabled: bool = os.getenv(
+            "MAINTENANCE_AUTO_UPDATE_ENABLED", "0"
+        ) in {"1", "true", "True"}
+        self.maintenance_update_command: str = os.getenv(
+            "MAINTENANCE_UPDATE_COMMAND", ""
+        ).strip()
+        self.maintenance_disk_paths: str = os.getenv("MAINTENANCE_DISK_PATHS", ".")
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
