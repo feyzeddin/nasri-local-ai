@@ -1,9 +1,11 @@
-from fastapi import Depends, FastAPI, HTTPException
+﻿from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.files import router as files_router
+from app.api.onboarding import router as onboarding_router
+from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
 
@@ -29,6 +31,7 @@ def _create_app() -> FastAPI:
     )
     application.include_router(auth_router)
     application.include_router(files_router)
+    application.include_router(onboarding_router)
 
     @application.get("/health")
     def health() -> dict[str, str]:
@@ -57,4 +60,3 @@ def _create_app() -> FastAPI:
 
 
 app = _create_app()
-from app.core.health import build_readiness
