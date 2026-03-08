@@ -64,6 +64,7 @@ Kurulum sonrası servis otomatik kurulur ve açılışta yeniden ayağa kalkar.
 Detay: `docs/BRANCH_STRATEGY.md`
 GitHub kurulum adımları: `docs/GITHUB_SETUP.md`
 Nasri kurulum/servis: `docs/NASRI_INSTALL_AND_SERVICE.md`
+CI/CD akışı: `docs/CICD_PIPELINE.md`
 
 ## GitHub Koruma Kuralları
 
@@ -71,6 +72,7 @@ Nasri kurulum/servis: `docs/NASRI_INSTALL_AND_SERVICE.md`
 - En az 1 PR review zorunlu
 - CI (`core-checks`, `ui-checks`) başarı zorunlu
 - Doğrudan push kapalı
+- CD için `staging` ve `production` environment onayları aktif olmalı
 
 ## Commit Konvansiyonu
 

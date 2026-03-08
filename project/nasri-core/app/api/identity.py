@@ -5,10 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from app.core.security import AuthSession, require_roles
 from app.schemas.identity import (
     IdentityEnrollRequest,
+    IdentityProfileListResponse,
+    IdentityProfileSummary,
     IdentityVerifyRequest,
     IdentityVerifyResponse,
 )
-from app.services.identity import IdentityError, enroll_identity, verify_identity
+from app.services.identity import (
+    IdentityError,
+    delete_profile,
+    enroll_identity,
+    list_profiles,
+    verify_identity,
+)
 
 router = APIRouter(prefix="/identity", tags=["identity"])
 
@@ -34,3 +42,22 @@ async def verify(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+
+@router.get("/profiles", response_model=IdentityProfileListResponse)
+async def profiles(
+    _session: AuthSession = Depends(require_roles("admin", "operator", "viewer")),
+) -> IdentityProfileListResponse:
+    items = await list_profiles()
+    return IdentityProfileListResponse(
+        count=len(items),
+        items=[IdentityProfileSummary(profile_id=x) for x in items],
+    )
+
+
+@router.delete("/profiles/{profile_id}")
+async def remove_profile(
+    profile_id: str,
+    _session: AuthSession = Depends(require_roles("admin", "operator")),
+) -> dict[str, bool]:
+    deleted = await delete_profile(profile_id)
+    return {"deleted": deleted}

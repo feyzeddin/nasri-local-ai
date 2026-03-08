@@ -27,3 +27,11 @@ class IdentityVerifyResponse(BaseModel):
     biometric_match: bool
     verified: bool
 
+
+class IdentityProfileSummary(BaseModel):
+    profile_id: str
+
+
+class IdentityProfileListResponse(BaseModel):
+    count: int
+    items: list[IdentityProfileSummary]

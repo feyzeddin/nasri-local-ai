@@ -327,6 +327,25 @@ class Settings:
         }
         self.federation_node_id: str = os.getenv("FEDERATION_NODE_ID", "nasri-local").strip()
         self.federation_shared_token: str = os.getenv("FEDERATION_SHARED_TOKEN", "").strip()
+        # F3.02 — Test Runner
+        self.test_runner_enabled: bool = os.getenv("TEST_RUNNER_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.test_runner_default_target: str = os.getenv(
+            "TEST_RUNNER_DEFAULT_TARGET", "tests"
+        ).strip()
+        self.test_runner_max_output_chars: int = int(
+            os.getenv("TEST_RUNNER_MAX_OUTPUT_CHARS", "6000")
+        )
+        # F3.10 — Dependency Auditor
+        self.dependency_auditor_enabled: bool = os.getenv(
+            "DEPENDENCY_AUDITOR_ENABLED", "1"
+        ) in {"1", "true", "True"}
+        self.dependency_auditor_max_output_chars: int = int(
+            os.getenv("DEPENDENCY_AUDITOR_MAX_OUTPUT_CHARS", "6000")
+        )
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

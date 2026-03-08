@@ -24,6 +24,13 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /speech/synthesize` (JSON: `{ "text": "..." }`)
 - Backend: `piper`
 
+## Çok Kullanıcılı Profil (Identity)
+
+- `POST /identity/enroll`
+- `POST /identity/verify`
+- `GET /identity/profiles`
+- `DELETE /identity/profiles/{profile_id}`
+
 ## RAG
 
 - `POST /rag/index` (doküman/chunk indexleme)
@@ -139,3 +146,15 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `DELETE /federation/peers/{peer_id}` (peer silme)
 - `POST /federation/dispatch` (uzak peer endpoint'ine payload gönderme)
 - `POST /federation/inbox` (X-Federation-Token ile korumalı alıcı endpoint)
+
+## Test Runner
+
+- `POST /test-runner/run` (pytest çalıştırır, çıktı + süre + kod döner)
+- `GET /test-runner/status` (son test koşumunu getirir)
+- `GET /test-runner/history?limit=10` (son koşum geçmişi)
+
+## Dependency Auditor
+
+- `POST /dependency-auditor/scan`
+- `GET /dependency-auditor/status`
+- Python tarafında `pip list --outdated`, UI tarafında `npm audit --json` çıktıları toplanır

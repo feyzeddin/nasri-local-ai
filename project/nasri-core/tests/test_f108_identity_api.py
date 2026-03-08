@@ -115,3 +115,24 @@ def test_identity_verify_fails_for_different_sample(monkeypatch):
     assert verify.status_code == 200
     assert verify.json()["verified"] is False
 
+
+def test_identity_profile_list_and_delete(monkeypatch):
+    client = _make_client(monkeypatch, _Settings(rbac_enabled=True))
+    operator = _token(client, "operator", "operator")
+    viewer = _token(client, "viewer", "viewer")
+
+    payload = {
+        "profile_id": "feyza",
+        "device": {"hostname": "nasri-pi", "os_name": "linux", "machine_id": "abc-123"},
+        "biometric_sample": "sample-a",
+    }
+    client.post("/identity/enroll", json=payload, headers={"X-Session-Token": operator})
+
+    listed = client.get("/identity/profiles", headers={"X-Session-Token": viewer})
+    assert listed.status_code == 200
+    assert listed.json()["count"] == 1
+    assert listed.json()["items"][0]["profile_id"] == "feyza"
+
+    deleted = client.delete("/identity/profiles/feyza", headers={"X-Session-Token": operator})
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True

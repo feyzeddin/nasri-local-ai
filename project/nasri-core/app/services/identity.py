@@ -9,6 +9,7 @@ from app.core.settings import get_settings
 from app.schemas.identity import DeviceInfo, IdentityVerifyResponse
 
 _PREFIX = "identity:profile"
+_INDEX_KEY = "identity:profiles"
 
 
 class IdentityError(Exception):
@@ -48,7 +49,11 @@ async def enroll_identity(profile_id: str, device: DeviceInfo, biometric_sample:
         "device_fingerprint": make_device_fingerprint(device),
         "biometric_template": make_biometric_template(biometric_sample),
     }
-    await get_redis().set(_key(profile_id), json.dumps(record, ensure_ascii=False))
+    r = get_redis()
+    pipe = r.pipeline()
+    pipe.set(_key(profile_id), json.dumps(record, ensure_ascii=False))
+    pipe.sadd(_INDEX_KEY, profile_id)
+    await pipe.execute()
 
 
 async def verify_identity(
@@ -78,3 +83,17 @@ async def verify_identity(
         verified=verified,
     )
 
+
+async def list_profiles() -> list[str]:
+    profiles = await get_redis().smembers(_INDEX_KEY)
+    return sorted(str(x) for x in profiles)
+
+
+async def delete_profile(profile_id: str) -> bool:
+    r = get_redis()
+    pipe = r.pipeline()
+    pipe.delete(_key(profile_id))
+    pipe.srem(_INDEX_KEY, profile_id)
+    out = await pipe.execute()
+    deleted = int(out[0]) if out and len(out) > 0 else 0
+    return deleted > 0
