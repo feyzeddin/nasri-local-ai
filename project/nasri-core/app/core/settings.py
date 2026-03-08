@@ -346,6 +346,18 @@ class Settings:
         self.dependency_auditor_max_output_chars: int = int(
             os.getenv("DEPENDENCY_AUDITOR_MAX_OUTPUT_CHARS", "6000")
         )
+        # F3.05 — Matter/Thread integration
+        self.matter_enabled: bool = os.getenv("MATTER_ENABLED", "0") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.matter_controller_url: str = os.getenv(
+            "MATTER_CONTROLLER_URL", "http://localhost:5580"
+        ).strip()
+        self.matter_controller_token: str = os.getenv(
+            "MATTER_CONTROLLER_TOKEN", ""
+        ).strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

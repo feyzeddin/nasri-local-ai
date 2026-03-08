@@ -128,6 +128,14 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /zigbee/action`
 - zigbee2mqtt HTTP API üzerinden cihaz eşleştirme ve temel komut akışı sağlar
 
+## Matter/Thread Bridge
+
+- `GET /matter/status`
+- `GET /matter/devices`
+- `POST /matter/pair`
+- `POST /matter/action`
+- Matter controller API üzerinden Thread cihaz keşfi, eşleştirme ve komut akışı sağlar
+
 ## Proaktif Öneri Motoru
 
 - `GET /suggestions/proactive?profile_id=...`
