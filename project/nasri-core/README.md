@@ -51,3 +51,10 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - Provider bazlı rate-limit (`*_RPM`) uygulanır
 - İstek metni isteğe bağlı anonimleştirilir (`EXTERNAL_AI_ANONYMIZE_ENABLED=1`)
 - Redis üzerinde günlük token/maliyet takibi tutulur (`external_ai:cost:*` anahtarları)
+
+## LAN Tarama ve Cihaz Keşfi
+
+- `POST /network/discover`
+- `nmap -sn` ile ağdaki aktif cihazlar bulunur
+- Opsiyonel `mDNS` keşfi ile hostname zenginleştirmesi yapılır
+- Cihazlar için basit sahiplik tahmini (`likely_owned`, `possible_owned`, `unknown`) üretilir

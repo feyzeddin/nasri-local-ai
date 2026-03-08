@@ -177,6 +177,16 @@ class Settings:
         self.gemini_cost_output_per_1k: float = float(
             os.getenv("GEMINI_COST_OUTPUT_PER_1K", "0")
         )
+        # F2.06 — LAN tarama + mDNS keşif
+        self.lan_scan_default_cidr: str = os.getenv(
+            "LAN_SCAN_DEFAULT_CIDR", "192.168.1.0/24"
+        ).strip()
+        self.lan_scan_timeout_seconds: int = int(
+            os.getenv("LAN_SCAN_TIMEOUT_SECONDS", "30")
+        )
+        self.lan_scan_mdns_enabled: bool = os.getenv(
+            "LAN_SCAN_MDNS_ENABLED", "1"
+        ) in {"1", "true", "True"}
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

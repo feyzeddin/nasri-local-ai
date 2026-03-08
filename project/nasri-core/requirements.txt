@@ -11,3 +11,4 @@ cryptography==45.0.7
 chromadb==0.5.23
 fakeredis==2.28.1
 ruff==0.13.0
+zeroconf==0.136.0
