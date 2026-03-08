@@ -34,3 +34,7 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 
 - `POST /memory/store` (profil bazlı uzun vadeli bellek yazma)
 - `GET /memory/recall?profile_id=...&q=...` (semantik bellek geri çağırma)
+
+## Planner (ReAct)
+
+- `POST /planner/run` (goal + profile_id ile ReAct tarzı adım planı üretir)

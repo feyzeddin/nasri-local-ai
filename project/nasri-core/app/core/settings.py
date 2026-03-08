@@ -95,6 +95,8 @@ class Settings:
             "MEMORY_COLLECTION_NAME", "nasri_memory"
         )
         self.memory_default_top_k: int = int(os.getenv("MEMORY_DEFAULT_TOP_K", "5"))
+        # F2.03 — Planner (ReAct)
+        self.planner_max_steps: int = int(os.getenv("PLANNER_MAX_STEPS", "6"))
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
