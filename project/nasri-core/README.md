@@ -120,3 +120,8 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /zigbee/permit-join`
 - `POST /zigbee/action`
 - zigbee2mqtt HTTP API üzerinden cihaz eşleştirme ve temel komut akışı sağlar
+
+## Proaktif Öneri Motoru
+
+- `GET /suggestions/proactive?profile_id=...`
+- Profil bazlı bellek sinyallerinden ve zaman bilgisinden öneriler üretir

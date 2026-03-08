@@ -23,6 +23,7 @@ from app.api.backup import router as backup_router
 from app.api.driver import router as driver_router
 from app.api.codegen import router as codegen_router
 from app.api.zigbee import router as zigbee_router
+from app.api.suggestion import router as suggestion_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -72,6 +73,7 @@ def _create_app() -> FastAPI:
     application.include_router(driver_router)
     application.include_router(codegen_router)
     application.include_router(zigbee_router)
+    application.include_router(suggestion_router)
 
     @application.on_event("startup")
     async def _startup_maintenance() -> None:

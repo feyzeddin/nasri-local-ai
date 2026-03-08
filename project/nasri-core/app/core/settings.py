@@ -300,6 +300,13 @@ class Settings:
             "ZIGBEE2MQTT_API_URL", "http://localhost:8080"
         ).strip()
         self.zigbee2mqtt_api_key: str = os.getenv("ZIGBEE2MQTT_API_KEY", "").strip()
+        # F3.06 — Proactive suggestion engine
+        self.suggestion_enabled: bool = os.getenv("SUGGESTION_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.suggestion_max_items: int = int(os.getenv("SUGGESTION_MAX_ITEMS", "5"))
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
