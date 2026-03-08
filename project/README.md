@@ -26,6 +26,13 @@ Bu repo 3 ana paketten oluşur:
 4. API'yi çalıştır:
    - `uvicorn nasri-core.app.main:app --reload`
 
+## UI Hızlı Başlangıç
+
+1. UI bağımlılıklarını kur:
+   - `cd nasri-ui && npm install`
+2. UI geliştirme sunucusu:
+   - `npm run dev`
+
 ## Branch Stratejisi (Özet)
 
 - `main`: production'a çıkan stabil kod
