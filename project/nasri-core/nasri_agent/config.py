@@ -1,4 +1,4 @@
-﻿import os
+import os
 from pathlib import Path
 
 from . import __version__
@@ -43,3 +43,18 @@ def local_version() -> str:
     if version_path.exists():
         return version_path.read_text(encoding="utf-8").strip()
     return __version__
+
+
+def api_port() -> int:
+    """Uvicorn'un dinleyeceği port. NASRI_API_PORT env ile değiştirilebilir."""
+    return int(os.getenv("NASRI_API_PORT", "8000"))
+
+
+def api_app_dir() -> Path:
+    """FastAPI app paketinin bulunduğu dizin (nasri-core/)."""
+    # Kurulu ortamda: install_dir()/project/nasri-core
+    # Geliştirme ortamında: NASRI_APP_DIR ile override edilebilir
+    override = os.getenv("NASRI_APP_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+    return install_dir() / "project" / "nasri-core"

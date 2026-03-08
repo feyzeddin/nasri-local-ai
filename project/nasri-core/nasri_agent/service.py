@@ -1,4 +1,4 @@
-﻿import datetime as dt
+import datetime as dt
 import json
 import os
 import platform
@@ -9,10 +9,18 @@ import time
 from pathlib import Path
 
 from . import __version__
-from .config import install_dir, local_version, lock_file, state_file
+from .config import (
+    api_app_dir,
+    api_port,
+    install_dir,
+    local_version,
+    lock_file,
+    state_file,
+)
 from .updater import maybe_update, should_check_update
 
 RUNNING = True
+_api_proc: subprocess.Popen | None = None  # type: ignore[type-arg]
 
 
 def _handle_stop(_sig: int, _frame: object) -> None:
@@ -53,13 +61,49 @@ def _release_lock() -> None:
         lock.unlink(missing_ok=True)
 
 
+def _start_api_server() -> "subprocess.Popen[bytes]":
+    """Uvicorn'u arka planda subprocess olarak başlatır."""
+    port = api_port()
+    app_dir = api_app_dir()
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(port),
+        ],
+        cwd=str(app_dir),
+    )
+    return proc
+
+
+def _stop_api_server(proc: "subprocess.Popen[bytes]") -> None:
+    """Uvicorn process'ini önce SIGTERM, sonra gerekirse SIGKILL ile durdurur."""
+    if proc.poll() is not None:
+        return  # zaten durmuş
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
 def run_service() -> None:
+    global _api_proc
     signal.signal(signal.SIGTERM, _handle_stop)
     signal.signal(signal.SIGINT, _handle_stop)
 
     if not _take_lock():
         print("Nasri servis zaten calisiyor.")
         return
+
+    port = api_port()
+    _api_proc = _start_api_server()
 
     try:
         _write_state(
@@ -68,9 +112,16 @@ def run_service() -> None:
             installed_version=local_version(),
             started_at=dt.datetime.now(dt.timezone.utc).isoformat(),
             platform=platform.platform(),
+            api_port=str(port),
+            api_pid=str(_api_proc.pid),
         )
         while RUNNING:
-            current = {}
+            # Uvicorn beklenmedik şekilde çöktüyse yeniden başlat
+            if _api_proc.poll() is not None:
+                _api_proc = _start_api_server()
+                _write_state(api_pid=str(_api_proc.pid))
+
+            current: dict = {}
             try:
                 current = json.loads(state_file().read_text(encoding="utf-8"))
             except Exception:
@@ -82,11 +133,16 @@ def run_service() -> None:
                 _write_state(last_update_check=now_iso)
                 updated = maybe_update()
                 if updated:
-                    _write_state(last_update_result="ok:updated", installed_version=local_version())
+                    _write_state(
+                        last_update_result="ok:updated",
+                        installed_version=local_version(),
+                    )
             time.sleep(30)
 
         _write_state(status="stopped")
     finally:
+        if _api_proc is not None:
+            _stop_api_server(_api_proc)
         _release_lock()
 
 
@@ -95,7 +151,11 @@ def _run_cmd(args: list[str]) -> None:
 
 
 def _install_linux_service() -> None:
-    service_user = os.getenv("NASRI_SERVICE_USER") or os.getenv("SUDO_USER") or os.getenv("USER", "root")
+    service_user = (
+        os.getenv("NASRI_SERVICE_USER")
+        or os.getenv("SUDO_USER")
+        or os.getenv("USER", "root")
+    )
     data_path = install_dir() / ".nasri-data"
     data_path.mkdir(parents=True, exist_ok=True)
     service_text = f"""[Unit]
@@ -166,12 +226,16 @@ def _install_windows_service() -> None:
     data_path = install_dir() / ".nasri-data"
     data_path.mkdir(parents=True, exist_ok=True)
     ps = (
-        "$action = New-ScheduledTaskAction -Execute \"" + sys.executable + "\" -Argument \"-m nasri_agent.service\";"
+        '$action = New-ScheduledTaskAction -Execute "'
+        + sys.executable
+        + '" -Argument "-m nasri_agent.service";'
         "$trigger = New-ScheduledTaskTrigger -AtStartup;"
         "$settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries;"
-        "[Environment]::SetEnvironmentVariable('NASRI_DATA_DIR','" + str(data_path) + "','User');"
-        "Register-ScheduledTask -TaskName \"NasriService\" -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -Force;"
-        "Start-ScheduledTask -TaskName \"NasriService\";"
+        "[Environment]::SetEnvironmentVariable('NASRI_DATA_DIR','"
+        + str(data_path)
+        + "','User');"
+        'Register-ScheduledTask -TaskName "NasriService" -Action $action -Trigger $trigger -Settings $settings -RunLevel Highest -Force;'
+        'Start-ScheduledTask -TaskName "NasriService";'
     )
     subprocess.run(["powershell", "-NoProfile", "-Command", ps], check=True)
 

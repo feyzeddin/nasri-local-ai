@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import json
 from .config import local_version, state_file
 
@@ -28,9 +28,10 @@ def cmd_status() -> int:
     if state:
         status = state.get("status", "unknown")
         last_update = state.get("last_update_result", "n/a")
-        print(f"status={status} last_update={last_update}")
+        api_port = state.get("api_port", "n/a")
+        print(f"status={status} api_port={api_port} last_update={last_update}")
     else:
-        print("status=unknown last_update=n/a")
+        print("status=unknown api_port=n/a last_update=n/a")
     return 0
 
 
