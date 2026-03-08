@@ -19,6 +19,16 @@ class Settings:
         self.session_ttl_seconds = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
         # Nasri'nin kişiliğini ve görev kapsamını tanımlayan sistem mesajı
         self.system_prompt: str | None = os.getenv("NASRI_SYSTEM_PROMPT") or None
+        # F12.1 — API Key auth (boşsa auth devre dışı)
+        self.api_key: str | None = os.getenv("NASRI_API_KEY") or None
+        # F12.2 — CORS izin verilen originler (virgülle ayrılmış)
+        self.cors_origins: list[str] = [
+            o.strip()
+            for o in os.getenv("NASRI_CORS_ORIGINS", "http://localhost:5173").split(",")
+            if o.strip()
+        ]
+        # F12.3 — Rate limit: dakikada maksimum istek sayısı (per-IP)
+        self.rate_limit_rpm: int = int(os.getenv("NASRI_RATE_LIMIT_RPM", "60"))
 
 
 @lru_cache
