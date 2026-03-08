@@ -8,6 +8,8 @@ SvelteKit tabanlı Nasri dashboard uygulaması.
 - Sistem durumu paneli (`/health/ready`, `/maintenance/status`)
 - Cihaz listesi (`/network/discover`)
 - Log görüntüleyici (`/files/list`)
+- PWA kurulumu (manifest + service worker)
+- Mobilde bildirim izni ve sesli komut giriş başlangıcı
 
 ## Komutlar
 

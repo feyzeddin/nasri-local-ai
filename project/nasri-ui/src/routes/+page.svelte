@@ -23,6 +23,10 @@
   let message = "";
   let replies: { role: "user" | "assistant"; text: string }[] = [];
   let sending = false;
+  let installPrompt: Event | null = null;
+  let installReady = false;
+  let notificationState = "default";
+  let listening = false;
 
   async function loadDashboard() {
     loading = true;
@@ -67,7 +71,51 @@
     }
   }
 
-  onMount(loadDashboard);
+  async function installApp() {
+    const prompt = installPrompt as (Event & { prompt?: () => Promise<void>; userChoice?: Promise<{ outcome: string }> }) | null;
+    if (!prompt?.prompt) return;
+    await prompt.prompt();
+    installPrompt = null;
+    installReady = false;
+  }
+
+  async function enableNotifications() {
+    if (!("Notification" in window)) return;
+    const p = await Notification.requestPermission();
+    notificationState = p;
+  }
+
+  function startVoiceInput() {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const rec = new SpeechRecognition();
+    rec.lang = "tr-TR";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    listening = true;
+    rec.onresult = (ev: any) => {
+      const txt = ev.results?.[0]?.[0]?.transcript || "";
+      message = String(txt);
+      listening = false;
+    };
+    rec.onerror = () => {
+      listening = false;
+    };
+    rec.onend = () => {
+      listening = false;
+    };
+    rec.start();
+  }
+
+  onMount(() => {
+    loadDashboard();
+    if ("Notification" in window) notificationState = Notification.permission;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      installPrompt = e;
+      installReady = true;
+    });
+  });
 </script>
 
 <svelte:head>
@@ -78,9 +126,17 @@
   <header class="hero">
     <h1>Nasri Dashboard</h1>
     <p>sohbet, sistem durumu, cihazlar ve log akışı tek panelde</p>
-    <button class="refresh" on:click={loadDashboard} disabled={loading}>
-      {loading ? "Yükleniyor..." : "Yenile"}
-    </button>
+    <div class="hero-actions">
+      <button class="refresh" on:click={loadDashboard} disabled={loading}>
+        {loading ? "Yükleniyor..." : "Yenile"}
+      </button>
+      <button class="soft" on:click={enableNotifications}>
+        Bildirim: {notificationState}
+      </button>
+      <button class="soft" on:click={installApp} disabled={!installReady}>
+        {installReady ? "Uygulamayı Yükle" : "PWA Hazır Değil"}
+      </button>
+    </div>
   </header>
 
   {#if errors.length}
@@ -107,6 +163,7 @@
       </div>
       <div class="chat-input">
         <input bind:value={message} placeholder="Mesaj yaz..." />
+        <button class="voice" on:click={startVoiceInput} disabled={listening}>{listening ? "Dinliyor..." : "Ses"}</button>
         <button on:click={submitChat} disabled={sending}>{sending ? "..." : "Gönder"}</button>
       </div>
     </article>
@@ -194,6 +251,21 @@
     cursor: pointer;
   }
 
+  .soft {
+    border: 1px solid #b3c6ea;
+    background: #ffffff;
+    color: #17325c;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
   .errors {
     background: #ffe8e8;
     border: 1px solid #f8bebe;
@@ -246,7 +318,7 @@
   .chat-input {
     margin-top: 10px;
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     gap: 8px;
   }
 
@@ -264,6 +336,10 @@
     background: #1f5ca5;
     color: #fff;
     cursor: pointer;
+  }
+
+  .voice {
+    background: #356d2f !important;
   }
 
   .bubble {
@@ -319,6 +395,9 @@
   @media (max-width: 900px) {
     .card {
       grid-column: span 12;
+    }
+    .chat-input {
+      grid-template-columns: 1fr 1fr 1fr;
     }
   }
 </style>
