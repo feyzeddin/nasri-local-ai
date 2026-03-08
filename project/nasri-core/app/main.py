@@ -18,6 +18,7 @@ from app.api.ssh import router as ssh_router
 from app.api.home_automation import router as home_automation_router
 from app.api.maintenance import router as maintenance_router
 from app.api.research import router as research_router
+from app.api.anomaly import router as anomaly_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -62,6 +63,7 @@ def _create_app() -> FastAPI:
     application.include_router(home_automation_router)
     application.include_router(maintenance_router)
     application.include_router(research_router)
+    application.include_router(anomaly_router)
 
     @application.on_event("startup")
     async def _startup_maintenance() -> None:

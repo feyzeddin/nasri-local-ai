@@ -86,3 +86,10 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - SearXNG ile arama yapar (`RESEARCH_SEARXNG_URL`)
 - Güvenilir domain filtresi uygular (`RESEARCH_ALLOWED_DOMAINS`)
 - Sayfa içeriğini özetler ve raporu yerel dosyaya kaydeder (`RESEARCH_SAVE_DIR`)
+
+## Anomaly Detector
+
+- `GET /anomaly/status`
+- `POST /anomaly/ingest`
+- `GET /anomaly/alerts`
+- Ağ trafiği ve dosya erişimi olayları için eşik tabanlı anomali tespiti ve uyarı üretimi

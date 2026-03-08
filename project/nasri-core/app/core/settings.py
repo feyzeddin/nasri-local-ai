@@ -245,6 +245,24 @@ class Settings:
             "RESEARCH_ALLOWED_DOMAINS",
             "wikipedia.org,bbc.com,reuters.com,aa.com.tr,trthaber.com,gov.tr,edu",
         )
+        # F2.12 — Anomaly detector
+        self.anomaly_enabled: bool = os.getenv("ANOMALY_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.anomaly_network_bytes_threshold: int = int(
+            os.getenv("ANOMALY_NETWORK_BYTES_THRESHOLD", "52428800")
+        )
+        self.anomaly_network_conn_threshold_per_minute: int = int(
+            os.getenv("ANOMALY_NETWORK_CONN_THRESHOLD_PER_MINUTE", "120")
+        )
+        self.anomaly_file_burst_threshold_per_minute: int = int(
+            os.getenv("ANOMALY_FILE_BURST_THRESHOLD_PER_MINUTE", "80")
+        )
+        self.anomaly_sensitive_paths: str = os.getenv(
+            "ANOMALY_SENSITIVE_PATHS", "/etc,/var/lib,/home,/root,C:\\Windows,C:\\Users"
+        )
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
