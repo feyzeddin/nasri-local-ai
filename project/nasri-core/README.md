@@ -16,3 +16,8 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 
 - `GET /health` temel canlılık kontrolü
 - `GET /health/ready` Redis + Ollama bağımlılık hazır olma kontrolü
+
+## Konuşma (STT)
+
+- `POST /speech/transcribe` (multipart form-data, `audio` alanı)
+- Backend: `whisper.cpp`

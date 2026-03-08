@@ -5,6 +5,7 @@ from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.files import router as files_router
 from app.api.onboarding import router as onboarding_router
+from app.api.speech import router as speech_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -27,6 +28,10 @@ def _create_app() -> FastAPI:
     # F12.1 + F12.3 — Auth + Rate limit tüm /chat rotalarına uygulanır
     application.include_router(
         chat_router,
+        dependencies=[Depends(verify_api_key), Depends(rate_limit)],
+    )
+    application.include_router(
+        speech_router,
         dependencies=[Depends(verify_api_key), Depends(rate_limit)],
     )
     application.include_router(auth_router)

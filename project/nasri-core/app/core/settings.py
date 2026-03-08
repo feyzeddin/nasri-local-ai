@@ -56,6 +56,13 @@ class Settings:
         # F1.11 — Dosya yönetimi güvenli kök dizin
         self.files_root: str = os.getenv("NASRI_FILES_ROOT", os.getcwd())
         self.files_max_results: int = int(os.getenv("NASRI_FILES_MAX_RESULTS", "200"))
+        # F1.04 — Whisper.cpp STT
+        self.whisper_cpp_binary: str = os.getenv("WHISPER_CPP_BINARY", "").strip()
+        self.whisper_cpp_model: str = os.getenv("WHISPER_CPP_MODEL", "").strip()
+        self.whisper_cpp_language: str = os.getenv("WHISPER_CPP_LANGUAGE", "tr").strip()
+        self.whisper_cpp_timeout_seconds: int = int(
+            os.getenv("WHISPER_CPP_TIMEOUT_SECONDS", "180")
+        )
 
 
 @lru_cache
