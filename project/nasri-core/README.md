@@ -131,3 +131,11 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `GET /self-heal/status`
 - `POST /self-heal/run?force=true|false`
 - Hata tespiti (maintenance/anomaly) sonrası otomatik bakım ve yedek aksiyonları çalıştırır
+
+## Federation Base
+
+- `POST /federation/peers` (peer kayıt/güncelleme)
+- `GET /federation/peers` (kayıtlı peer listesi)
+- `DELETE /federation/peers/{peer_id}` (peer silme)
+- `POST /federation/dispatch` (uzak peer endpoint'ine payload gönderme)
+- `POST /federation/inbox` (X-Federation-Token ile korumalı alıcı endpoint)

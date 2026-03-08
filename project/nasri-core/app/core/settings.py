@@ -319,6 +319,14 @@ class Settings:
             "True",
         }
         self.self_heal_anomaly_limit: int = int(os.getenv("SELF_HEAL_ANOMALY_LIMIT", "20"))
+        # F3.11 — Federation base
+        self.federation_enabled: bool = os.getenv("FEDERATION_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.federation_node_id: str = os.getenv("FEDERATION_NODE_ID", "nasri-local").strip()
+        self.federation_shared_token: str = os.getenv("FEDERATION_SHARED_TOKEN", "").strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
