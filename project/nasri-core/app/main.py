@@ -21,6 +21,7 @@ from app.api.research import router as research_router
 from app.api.anomaly import router as anomaly_router
 from app.api.backup import router as backup_router
 from app.api.driver import router as driver_router
+from app.api.codegen import router as codegen_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -68,6 +69,7 @@ def _create_app() -> FastAPI:
     application.include_router(anomaly_router)
     application.include_router(backup_router)
     application.include_router(driver_router)
+    application.include_router(codegen_router)
 
     @application.on_event("startup")
     async def _startup_maintenance() -> None:

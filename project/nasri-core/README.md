@@ -106,3 +106,9 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `GET /driver/scan`
 - `POST /driver/install`
 - Windows/Linux için sürücü tarama ve kontrollü kurulum akışı sağlar
+
+## Code Generator
+
+- `POST /codegen/generate`
+- Gereksinim + dil/framework seçimine göre başlangıç proje iskeleti üretir
+- Üretilen dosyalar `CODEGEN_OUTPUT_ROOT` altında saklanır

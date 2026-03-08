@@ -288,6 +288,8 @@ class Settings:
         self.driver_manager_auto_install: bool = os.getenv(
             "DRIVER_MANAGER_AUTO_INSTALL", "0"
         ) in {"1", "true", "True"}
+        # F3.01 — Code generator
+        self.codegen_output_root: str = os.getenv("CODEGEN_OUTPUT_ROOT", ".nasri-codegen")
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
