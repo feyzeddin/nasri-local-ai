@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 import os
 
 from dotenv import load_dotenv
@@ -13,6 +13,10 @@ class Settings:
         self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
         self.ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
         self.model_name = os.getenv("MODEL_NAME", "llama3")
+        # Konuşma geçmişi: kaç mesaj çifti (kullanıcı+asistan) saklanacak
+        self.max_history_pairs = int(os.getenv("MAX_HISTORY_PAIRS", "10"))
+        # Redis'te oturum key'inin geçerlilik süresi (saniye), varsayılan 1 saat
+        self.session_ttl_seconds = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
 
 
 @lru_cache
