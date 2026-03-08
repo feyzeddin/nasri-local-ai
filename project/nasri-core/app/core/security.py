@@ -12,6 +12,9 @@ F12.3 — Hız sınırlaması (Rate Limiting)
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
+from secrets import token_urlsafe
 import time
 from collections import defaultdict, deque
 from threading import Lock
@@ -20,6 +23,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.settings import get_settings
+from app.core.redis import get_redis
 
 # ---------------------------------------------------------------------------
 # F12.1 — API Key
@@ -112,3 +116,102 @@ def rate_limit(request: Request) -> None:
             detail=f"Çok fazla istek. {retry_after} saniye sonra tekrar deneyin.",
             headers={"Retry-After": str(retry_after)},
         )
+
+
+# ---------------------------------------------------------------------------
+# F1.07 — Session Auth + RBAC
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AuthSession:
+    username: str
+    role: str
+    token: str
+
+
+_AUTH_PREFIX = "auth:session"
+
+
+def _auth_key(token: str) -> str:
+    return f"{_AUTH_PREFIX}:{token}"
+
+
+async def create_auth_session(username: str, role: str) -> tuple[str, int]:
+    token = token_urlsafe(32)
+    ttl = get_settings().auth_session_ttl_seconds
+    payload = {"username": username, "role": role}
+    r = get_redis()
+    await r.setex(_auth_key(token), ttl, json.dumps(payload, ensure_ascii=False))
+    return token, ttl
+
+
+async def validate_user_credentials(username: str, password: str) -> str | None:
+    users = get_settings().users
+    item = users.get(username)
+    if item is None:
+        return None
+    if item.get("password") != password:
+        return None
+    return item.get("role", "viewer")
+
+
+async def delete_auth_session(token: str) -> None:
+    r = get_redis()
+    await r.delete(_auth_key(token))
+
+
+async def get_current_session(request: Request) -> AuthSession:
+    settings = get_settings()
+    if not settings.rbac_enabled:
+        return AuthSession(username="local-dev", role="admin", token="dev")
+
+    token = request.headers.get("X-Session-Token")
+    if not token:
+        # RBAC endpointleri için Authorization Bearer da kabul edilir
+        credentials = await _bearer_scheme(request)
+        token = credentials.credentials if credentials else None
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Oturum token'i gerekli.",
+        )
+
+    r = get_redis()
+    raw = await r.get(_auth_key(token))
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Geçersiz veya süresi dolmuş oturum.",
+        )
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bozuk oturum verisi.",
+        ) from exc
+
+    # Sliding expiration: aktif kullanımda TTL yenilenir
+    await r.expire(_auth_key(token), settings.auth_session_ttl_seconds)
+    return AuthSession(
+        username=str(payload.get("username", "")),
+        role=str(payload.get("role", "viewer")),
+        token=token,
+    )
+
+
+def require_roles(*roles: str):
+    allowed = set(roles)
+
+    async def _dep(session: AuthSession = Depends(get_current_session)) -> AuthSession:
+        if session.role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Bu işlem için rol gerekli: {', '.join(sorted(allowed))}",
+            )
+        return session
+
+    return _dep

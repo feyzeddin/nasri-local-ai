@@ -1,4 +1,5 @@
 from functools import lru_cache
+import json
 import os
 
 from dotenv import load_dotenv
@@ -29,6 +30,29 @@ class Settings:
         ]
         # F12.3 — Rate limit: dakikada maksimum istek sayısı (per-IP)
         self.rate_limit_rpm: int = int(os.getenv("NASRI_RATE_LIMIT_RPM", "60"))
+        # F1.07 — RBAC özelliği (0/1)
+        self.rbac_enabled: bool = os.getenv("NASRI_RBAC_ENABLED", "0") in {
+            "1",
+            "true",
+            "True",
+        }
+        # F1.07 — Auth oturum TTL
+        self.auth_session_ttl_seconds: int = int(
+            os.getenv("AUTH_SESSION_TTL_SECONDS", "28800")
+        )
+        # F1.07 — Kullanıcı tanımları (JSON: {"user":{"password":"...","role":"..."}})
+        raw_users = os.getenv("NASRI_USERS_JSON")
+        if raw_users:
+            try:
+                self.users: dict[str, dict[str, str]] = json.loads(raw_users)
+            except json.JSONDecodeError:
+                self.users = {}
+        else:
+            self.users = {
+                "admin": {"password": "admin", "role": "admin"},
+                "operator": {"password": "operator", "role": "operator"},
+                "viewer": {"password": "viewer", "role": "viewer"},
+            }
 
 
 @lru_cache

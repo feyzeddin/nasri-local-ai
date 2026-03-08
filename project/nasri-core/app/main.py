@@ -1,8 +1,9 @@
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
-from app.core.security import rate_limit, verify_api_key
+from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
 
 
@@ -25,13 +26,23 @@ def _create_app() -> FastAPI:
         chat_router,
         dependencies=[Depends(verify_api_key), Depends(rate_limit)],
     )
+    application.include_router(auth_router)
 
     @application.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @application.get("/health/ready")
+    async def health_ready() -> dict:
+        result = await build_readiness()
+        if result["status"] != "ok":
+            raise HTTPException(status_code=503, detail=result)
+        return result
+
     @application.get("/config")
-    def config() -> dict[str, str | int]:
+    def config(
+        _session: AuthSession = Depends(require_roles("admin")),
+    ) -> dict[str, str | int]:
         s = get_settings()
         return {
             "redis_host": s.redis_host,
@@ -44,3 +55,4 @@ def _create_app() -> FastAPI:
 
 
 app = _create_app()
+from app.core.health import build_readiness
