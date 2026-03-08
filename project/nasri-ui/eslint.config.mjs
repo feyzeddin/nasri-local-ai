@@ -1,4 +1,5 @@
 ﻿import js from "@eslint/js";
+import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -16,8 +17,7 @@ export default [
       ecmaVersion: 2022,
       sourceType: "module",
       globals: {
-        document: "readonly",
-        window: "readonly",
+        ...globals.browser,
       },
     },
     plugins: {
