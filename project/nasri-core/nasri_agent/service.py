@@ -182,7 +182,7 @@ def _install_linux_service() -> None:
         or os.getenv("SUDO_USER")
         or os.getenv("USER", "root")
     )
-    data_path = install_dir() / ".nasri-data"
+    data_path = Path(os.getenv("NASRI_DATA_DIR") or str(install_dir() / ".nasri-data"))
     data_path.mkdir(parents=True, exist_ok=True)
     service_text = f"""[Unit]
 Description=Nasri Background Service

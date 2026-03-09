@@ -109,7 +109,7 @@ port_in_use() { ss -tlnp 2>/dev/null | grep -q ":$1 " || lsof -i ":$1" &>/dev/nu
 find_free_port() {
     local port="$1"
     while port_in_use "$port"; do
-        warn "Port $port kullanımda, $((port+1)) deneniyor..."
+        warn "Port $port kullanımda, $((port+1)) deneniyor..." >&2
         port=$((port+1))
     done
     echo "$port"
