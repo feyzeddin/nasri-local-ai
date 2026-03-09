@@ -22,6 +22,7 @@ if [ ! -d "$NASRI_VENV" ]; then
 fi
 
 "$NASRI_VENV/bin/python" -m pip install --upgrade pip
+"$NASRI_VENV/bin/python" -m pip install -r "$NASRI_SRC/project/nasri-core/requirements.txt"
 "$NASRI_VENV/bin/python" -m pip install -e "$NASRI_SRC/project/nasri-core"
 
 mkdir -p "$HOME/.local/bin"
