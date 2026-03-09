@@ -68,8 +68,18 @@ def cmd_update() -> int:
     updated = maybe_update()
     if updated:
         print(f"Guncelleme tamamlandi. Yeni surum: {local_version()}")
-        print("Degisikliklerin aktif olmasi icin servisi yeniden baslatiniz:")
-        print("  sudo systemctl restart nasri.service")
+        import subprocess, shutil  # noqa: E401
+        if shutil.which("systemctl"):
+            print("Servis yeniden baslatiliyor...")
+            r = subprocess.run(
+                ["sudo", "systemctl", "restart", "nasri.service"],
+                capture_output=True, text=True,
+            )
+            if r.returncode == 0:
+                print("Servis yeniden baslatildi.")
+            else:
+                print(f"Servis baslatma basarisiz: {r.stderr.strip()}")
+                print("Manuel olarak calistirin: sudo systemctl restart nasri.service")
     else:
         from .config import state_file
         import json
