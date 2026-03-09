@@ -36,19 +36,37 @@ exec > >(tee -a "$NASRI_LOG") 2>&1
 # =============================================================================
 # KULLANICI ONAYI
 # =============================================================================
-echo ""
-echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${YELLOW}║                    ÖNEMLİ UYARI                             ║${NC}"
-echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${YELLOW}║                                                              ║${NC}"
-echo -e "${YELLOW}║  Nasri, bu cihazda TEK BAŞINA çalışmak üzere tasarlanmıştır.║${NC}"
-echo -e "${YELLOW}║                                                              ║${NC}"
-echo -e "${YELLOW}║  Çalışan başka uygulama veya servisler varsa bunları         ║${NC}"
-echo -e "${YELLOW}║  durdurabilir ve silebilir.                                  ║${NC}"
-echo -e "${YELLOW}║                                                              ║${NC}"
-echo -e "${YELLOW}║  Kuruluma devam etmeden önce bunu onaylıyor musunuz?         ║${NC}"
-echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
-echo ""
+python3 - <<'PYBOX'
+Y  = '\033[1;33m'   # sarı
+R  = '\033[0;31m'   # kırmızı
+NC = '\033[0m'
+W  = 62             # iç genişlik
+
+def row(text='', text_color=''):
+    pad = W - len(text)
+    return f"{Y}║{NC}{text_color}{text}{NC}{' ' * pad}{Y}║{NC}"
+
+sep_top = f"{Y}╔{'═' * W}╗{NC}"
+sep_mid = f"{Y}╠{'═' * W}╣{NC}"
+sep_bot = f"{Y}╚{'═' * W}╝{NC}"
+
+print('')
+print(sep_top)
+print(row())
+print(row('  ÖNEMLİ UYARI', R))
+print(row())
+print(sep_mid)
+print(row())
+print(row('  Nasri, bu cihazda TEK BAŞINA çalışmak üzere tasarlanmıştır.'))
+print(row())
+print(row('  Çalışan başka uygulama veya servisler varsa bunları'))
+print(row('  durdurabilir ve silebilir.'))
+print(row())
+print(row('  Kuruluma devam etmeden önce bunu onaylıyor musunuz?'))
+print(row())
+print(sep_bot)
+print('')
+PYBOX
 
 while true; do
     read -r -p "$(echo -e "${CYAN}Onaylıyor musunuz? [E/H]:${NC} ")" ONAY
