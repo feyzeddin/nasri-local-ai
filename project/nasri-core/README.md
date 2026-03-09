@@ -144,6 +144,13 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `GET /beta-program/feedback?limit=...`
 - NDA kabul işareti ve geri bildirim kayıtları Redis üzerinde tutulur
 
+## Pricing + Early Access
+
+- `GET /pricing/plans`
+- `POST /pricing/quote`
+- `GET /pricing/promo/{code}`
+- Freemium / Pro / Enterprise planları, yıllık indirim ve erken erişim kodu indirimi hesaplanır
+
 ## Proaktif Öneri Motoru
 
 - `GET /suggestions/proactive?profile_id=...`

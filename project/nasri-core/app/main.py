@@ -30,6 +30,7 @@ from app.api.test_runner import router as test_runner_router
 from app.api.dependency_auditor import router as dependency_auditor_router
 from app.api.matter import router as matter_router
 from app.api.beta_program import router as beta_program_router
+from app.api.pricing import router as pricing_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -86,6 +87,7 @@ def _create_app() -> FastAPI:
     application.include_router(dependency_auditor_router)
     application.include_router(matter_router)
     application.include_router(beta_program_router)
+    application.include_router(pricing_router)
 
     @application.on_event("startup")
     async def _startup_maintenance() -> None:

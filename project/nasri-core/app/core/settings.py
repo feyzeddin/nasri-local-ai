@@ -364,6 +364,17 @@ class Settings:
             "true",
             "True",
         }
+        # F3.14 — Pricing + early access campaign
+        self.pricing_currency: str = os.getenv("PRICING_CURRENCY", "TRY").strip()
+        self.pricing_annual_discount_percent: int = int(
+            os.getenv("PRICING_ANNUAL_DISCOUNT_PERCENT", "20")
+        )
+        self.pricing_early_access_extra_discount_percent: int = int(
+            os.getenv("PRICING_EARLY_ACCESS_EXTRA_DISCOUNT_PERCENT", "10")
+        )
+        self.pricing_early_access_codes: str = os.getenv(
+            "PRICING_EARLY_ACCESS_CODES", "NASRI2026,ERKEN2026"
+        ).strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""
