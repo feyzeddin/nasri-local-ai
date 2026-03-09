@@ -375,6 +375,30 @@ class Settings:
         self.pricing_early_access_codes: str = os.getenv(
             "PRICING_EARLY_ACCESS_CODES", "NASRI2026,ERKEN2026"
         ).strip()
+        # F4.01 — Fine-tuning pipeline (QLoRA)
+        self.fine_tuning_enabled: bool = os.getenv("FINE_TUNING_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.fine_tuning_base_model: str = os.getenv(
+            "FINE_TUNING_BASE_MODEL", "llama3"
+        ).strip()
+        self.fine_tuning_output_dir: str = os.getenv(
+            "FINE_TUNING_OUTPUT_DIR", ".nasri-finetune"
+        ).strip()
+        self.fine_tuning_allow_execute: bool = os.getenv(
+            "FINE_TUNING_ALLOW_EXECUTE", "0"
+        ) in {"1", "true", "True"}
+        # F4.02 — Autonomous multi-agent network
+        self.agent_network_enabled: bool = os.getenv("AGENT_NETWORK_ENABLED", "1") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.agent_network_max_agents: int = int(
+            os.getenv("AGENT_NETWORK_MAX_AGENTS", "6")
+        )
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

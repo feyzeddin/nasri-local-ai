@@ -151,6 +151,22 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `GET /pricing/promo/{code}`
 - Freemium / Pro / Enterprise planları, yıllık indirim ve erken erişim kodu indirimi hesaplanır
 
+## Fine-Tuning Pipeline (QLoRA)
+
+- `POST /fine-tuning/datasets`
+- `GET /fine-tuning/datasets`
+- `POST /fine-tuning/jobs/start`
+- `GET /fine-tuning/jobs/{job_id}`
+- `GET /fine-tuning/jobs?limit=...`
+- Dry-run modunda adapter metadata üretilir; gerçek eğitim için `FINE_TUNING_ALLOW_EXECUTE=1` gerekir
+
+## Otonom Ajan Ağı
+
+- `POST /agent-network/run`
+- `GET /agent-network/runs/{run_id}`
+- `GET /agent-network/runs?limit=...`
+- `planner`, `memory`, `risk` alt-ajanları paralel veya sıralı çalıştırılır
+
 ## Proaktif Öneri Motoru
 
 - `GET /suggestions/proactive?profile_id=...`
