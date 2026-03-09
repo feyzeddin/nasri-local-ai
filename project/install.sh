@@ -34,6 +34,43 @@ mkdir -p "$NASRI_HOME" "$NASRI_DATA_DIR"
 exec > >(tee -a "$NASRI_LOG") 2>&1
 
 # =============================================================================
+# KULLANICI ONAYI
+# =============================================================================
+echo ""
+echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${YELLOW}║                    ÖNEMLİ UYARI                             ║${NC}"
+echo -e "${YELLOW}╠══════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${YELLOW}║                                                              ║${NC}"
+echo -e "${YELLOW}║  Nasri, bu cihazda TEK BAŞINA çalışmak üzere tasarlanmıştır.║${NC}"
+echo -e "${YELLOW}║                                                              ║${NC}"
+echo -e "${YELLOW}║  Çalışan başka uygulama veya servisler varsa bunları         ║${NC}"
+echo -e "${YELLOW}║  durdurabilir ve silebilir.                                  ║${NC}"
+echo -e "${YELLOW}║                                                              ║${NC}"
+echo -e "${YELLOW}║  Kuruluma devam etmeden önce bunu onaylıyor musunuz?         ║${NC}"
+echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+while true; do
+    read -r -p "$(echo -e "${CYAN}Onaylıyor musunuz? [E/H]:${NC} ")" ONAY
+    case "${ONAY^^}" in
+        E|EVET)
+            echo ""
+            ok "Onaylandı. Kurulum başlıyor..."
+            echo ""
+            break
+            ;;
+        H|HAYIR)
+            echo ""
+            warn "Kurulum iptal edildi."
+            exit 0
+            ;;
+        *)
+            warn "Lütfen E (evet) veya H (hayır) girin."
+            ;;
+    esac
+done
+
+# =============================================================================
 # YARDIMCI FONKSİYONLAR
 # =============================================================================
 
