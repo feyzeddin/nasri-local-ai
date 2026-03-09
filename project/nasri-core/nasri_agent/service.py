@@ -17,6 +17,8 @@ from .config import (
     lock_file,
     state_file,
 )
+from .healer import heal_results
+from .preflight import run_preflight
 from .updater import maybe_update, should_check_update
 
 RUNNING = True
@@ -93,6 +95,26 @@ def _stop_api_server(proc: "subprocess.Popen[bytes]") -> None:
         proc.wait()
 
 
+def _run_preflight_with_heal() -> bool:
+    """Ön kontrolleri çalıştırır, hataları otomatik onarmayı dener."""
+    print("[nasri] Ön kontroller çalıştırılıyor...")
+    all_ok, results = run_preflight(verbose=True)
+
+    if not all_ok:
+        print("[nasri] Sorunlar tespit edildi, onarım deneniyor...")
+        healed = heal_results(results)
+        # Onarım sonrası tekrar kontrol et
+        all_ok2, results2 = run_preflight(verbose=False)
+        if not all_ok2:
+            failed = [r.name for r in results2 if not r.ok]
+            print(f"[nasri] UYARI: Zorunlu kontroller başarısız: {failed}")
+            print("[nasri] Servis başlatma iptal edildi. Lütfen hataları manuel düzeltin.")
+            return False
+
+    print("[nasri] Ön kontroller geçti.")
+    return True
+
+
 def run_service() -> None:
     global _api_proc
     signal.signal(signal.SIGTERM, _handle_stop)
@@ -101,6 +123,10 @@ def run_service() -> None:
     if not _take_lock():
         print("Nasri servis zaten calisiyor.")
         return
+
+    if not _run_preflight_with_heal():
+        _release_lock()
+        sys.exit(1)
 
     port = api_port()
     _api_proc = _start_api_server()
