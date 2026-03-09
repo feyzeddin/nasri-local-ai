@@ -22,6 +22,7 @@ env/
 node_modules/
 dist/
 *.tsbuildinfo
+.svelte-kit/
 
 # OS
 .DS_Store

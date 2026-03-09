@@ -1,0 +1,81 @@
+name: cd
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Deploy environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    branches:
+      - develop
+      - main
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Core deps + tests
+        working-directory: project/nasri-core
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          ruff check app tests
+          pytest -q tests
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: project/nasri-ui/package-lock.json
+
+      - name: UI deps + build
+        working-directory: project/nasri-ui
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm run build
+
+  deploy-staging:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env == 'staging' || github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    needs: verify
+    environment:
+      name: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy staging
+        run: bash project/scripts/deploy.sh staging
+
+  deploy-production:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env == 'production' || github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    needs: verify
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Deploy production
+        run: bash project/scripts/deploy.sh production
+

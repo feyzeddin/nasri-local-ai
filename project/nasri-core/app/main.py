@@ -5,9 +5,39 @@ from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.files import router as files_router
 from app.api.onboarding import router as onboarding_router
+from app.api.speech import router as speech_router
+from app.api.vault import router as vault_router
+from app.api.identity import router as identity_router
+from app.api.rag import router as rag_router
+from app.api.memory import router as memory_router
+from app.api.planner import router as planner_router
+from app.api.model_router import router as model_router_router
+from app.api.external_ai import router as external_ai_router
+from app.api.network import router as network_router
+from app.api.ssh import router as ssh_router
+from app.api.home_automation import router as home_automation_router
+from app.api.maintenance import router as maintenance_router
+from app.api.research import router as research_router
+from app.api.anomaly import router as anomaly_router
+from app.api.backup import router as backup_router
+from app.api.driver import router as driver_router
+from app.api.codegen import router as codegen_router
+from app.api.zigbee import router as zigbee_router
+from app.api.suggestion import router as suggestion_router
+from app.api.self_heal import router as self_heal_router
+from app.api.federation import router as federation_router
+from app.api.test_runner import router as test_runner_router
+from app.api.dependency_auditor import router as dependency_auditor_router
+from app.api.matter import router as matter_router
+from app.api.beta_program import router as beta_program_router
+from app.api.pricing import router as pricing_router
+from app.api.fine_tuning import router as fine_tuning_router
+from app.api.agent_network import router as agent_network_router
+from app.api.international import router as international_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
+from app.workers.maintenance import start_maintenance_worker, stop_maintenance_worker
 
 
 def _create_app() -> FastAPI:
@@ -29,9 +59,49 @@ def _create_app() -> FastAPI:
         chat_router,
         dependencies=[Depends(verify_api_key), Depends(rate_limit)],
     )
+    application.include_router(
+        speech_router,
+        dependencies=[Depends(verify_api_key), Depends(rate_limit)],
+    )
     application.include_router(auth_router)
     application.include_router(files_router)
     application.include_router(onboarding_router)
+    application.include_router(vault_router)
+    application.include_router(identity_router)
+    application.include_router(rag_router)
+    application.include_router(memory_router)
+    application.include_router(planner_router)
+    application.include_router(model_router_router)
+    application.include_router(external_ai_router)
+    application.include_router(network_router)
+    application.include_router(ssh_router)
+    application.include_router(home_automation_router)
+    application.include_router(maintenance_router)
+    application.include_router(research_router)
+    application.include_router(anomaly_router)
+    application.include_router(backup_router)
+    application.include_router(driver_router)
+    application.include_router(codegen_router)
+    application.include_router(zigbee_router)
+    application.include_router(suggestion_router)
+    application.include_router(self_heal_router)
+    application.include_router(federation_router)
+    application.include_router(test_runner_router)
+    application.include_router(dependency_auditor_router)
+    application.include_router(matter_router)
+    application.include_router(beta_program_router)
+    application.include_router(pricing_router)
+    application.include_router(fine_tuning_router)
+    application.include_router(agent_network_router)
+    application.include_router(international_router)
+
+    @application.on_event("startup")
+    async def _startup_maintenance() -> None:
+        start_maintenance_worker()
+
+    @application.on_event("shutdown")
+    async def _shutdown_maintenance() -> None:
+        await stop_maintenance_worker()
 
     @application.get("/health")
     def health() -> dict[str, str]:

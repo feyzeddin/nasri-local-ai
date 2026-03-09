@@ -1,0 +1,18 @@
+{
+  "name": "Nasri Mobile",
+  "short_name": "Nasri",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef2f8",
+  "theme_color": "#0f3a73",
+  "lang": "tr",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/nasri-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
