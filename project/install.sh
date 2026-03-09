@@ -33,16 +33,26 @@ exec "$NASRI_VENV/bin/nasri" "\$@"
 EOF
 chmod +x "$HOME/.local/bin/nasri"
 
+# PATH'e ekle (oturumda hemen kullanilabilsin)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Shell rc dosyasina da ekle (kalici)
+for rc in "$HOME/.bashrc" "$HOME/.profile"; do
+  if [ -f "$rc" ] && ! grep -q '.local/bin' "$rc"; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
+  fi
+done
+
 export NASRI_INSTALL_DIR="$NASRI_SRC"
 export NASRI_DATA_DIR="$NASRI_DATA_DIR"
 
 case "$(uname -s)" in
   Linux*)
     if command -v sudo >/dev/null 2>&1; then
-      sudo env "NASRI_INSTALL_DIR=$NASRI_SRC" "NASRI_DATA_DIR=$NASRI_DATA_DIR" "PATH=$PATH" "$NASRI_VENV/bin/nasri" install-service
+      sudo env "NASRI_INSTALL_DIR=$NASRI_SRC" "NASRI_DATA_DIR=$NASRI_DATA_DIR" "PATH=$HOME/.local/bin:$PATH" "$NASRI_VENV/bin/nasri" install-service
     else
-      echo "sudo bulunamadi. Linux servis kurulumu icin sudo gerekli."
-      exit 1
+      # sudo yoksa (zaten root) dogrudan calistir
+      NASRI_INSTALL_DIR="$NASRI_SRC" NASRI_DATA_DIR="$NASRI_DATA_DIR" "$NASRI_VENV/bin/nasri" install-service
     fi
     ;;
   Darwin*)
@@ -54,5 +64,16 @@ case "$(uname -s)" in
     ;;
 esac
 
-echo "Kurulum tamamlandi."
-echo "Komutlar: nasri /status | nasri /version | nasri /help"
+echo ""
+echo "============================================"
+echo "  Kurulum tamamlandi!"
+echo "============================================"
+echo ""
+echo "Kullanim:"
+echo "  nasri /status   — durum kontrolu"
+echo "  nasri /version  — surum bilgisi"
+echo "  nasri /help     — komut listesi"
+echo "  nasri start     — servisi on planda baslat"
+echo ""
+echo "PATH guncellendi. Yeni terminalde veya su komutla aktif edilir:"
+echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""

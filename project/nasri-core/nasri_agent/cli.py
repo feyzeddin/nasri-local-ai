@@ -74,7 +74,7 @@ def cmd_uninstall_service() -> int:
 
 
 def _normalize(raw: str) -> str:
-    return raw.strip().lower().replace("--", "").replace("/", "")
+    return raw.strip().lower().replace("--", "").replace("/", "").replace("-", "")
 
 
 def main(argv: list[str] | None = None) -> int:
