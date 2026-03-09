@@ -399,6 +399,13 @@ class Settings:
         self.agent_network_max_agents: int = int(
             os.getenv("AGENT_NETWORK_MAX_AGENTS", "6")
         )
+        # F4.05 — Internationalization + GDPR controls
+        self.supported_locales: list[str] = [
+            x.strip().lower()
+            for x in os.getenv("SUPPORTED_LOCALES", "tr,en,de").split(",")
+            if x.strip()
+        ]
+        self.default_locale: str = os.getenv("DEFAULT_LOCALE", "tr").strip().lower()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

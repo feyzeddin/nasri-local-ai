@@ -33,6 +33,7 @@ from app.api.beta_program import router as beta_program_router
 from app.api.pricing import router as pricing_router
 from app.api.fine_tuning import router as fine_tuning_router
 from app.api.agent_network import router as agent_network_router
+from app.api.international import router as international_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -92,6 +93,7 @@ def _create_app() -> FastAPI:
     application.include_router(pricing_router)
     application.include_router(fine_tuning_router)
     application.include_router(agent_network_router)
+    application.include_router(international_router)
 
     @application.on_event("startup")
     async def _startup_maintenance() -> None:

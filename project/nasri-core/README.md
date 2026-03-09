@@ -167,6 +167,14 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `GET /agent-network/runs?limit=...`
 - `planner`, `memory`, `risk` alt-ajanları paralel veya sıralı çalıştırılır
 
+## International + GDPR
+
+- `POST /international/locale`
+- `GET /international/locale/{profile_id}`
+- `POST /international/gdpr/export`
+- `POST /international/gdpr/erase`
+- Locale tercihleri (`tr/en/de`) ve profil verileri için export/erase akışı sağlar
+
 ## Proaktif Öneri Motoru
 
 - `GET /suggestions/proactive?profile_id=...`
