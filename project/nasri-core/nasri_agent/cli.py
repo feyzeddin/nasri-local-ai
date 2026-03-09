@@ -10,6 +10,7 @@ def _help_text() -> str:
 /help     Komut listesini yazdir
 /chat     Ollama ile sohbet baslat
 start     Servisi foreground baslat
+update    Guncelleme kontrol et ve uygula
 """
 
 
@@ -59,6 +60,31 @@ def cmd_chat() -> int:
     return chat_loop()
 
 
+def cmd_update() -> int:
+    from .updater import local_version, maybe_update
+
+    print(f"Mevcut surum: {local_version()}")
+    print("Guncelleme kontrol ediliyor...")
+    updated = maybe_update()
+    if updated:
+        print(f"Guncelleme tamamlandi. Yeni surum: {local_version()}")
+        print("Degisikliklerin aktif olmasi icin servisi yeniden baslatiniz:")
+        print("  sudo systemctl restart nasri.service")
+    else:
+        from .config import state_file
+        import json
+        try:
+            state = json.loads(state_file().read_text(encoding="utf-8"))
+            result = state.get("last_update_result", "n/a")
+        except Exception:
+            result = "n/a"
+        if "already-latest" in result:
+            print("Zaten en guncel surum.")
+        else:
+            print(f"Guncelleme uygulanamadi: {result}")
+    return 0
+
+
 def cmd_install_service() -> int:
     from .service import install_service
 
@@ -93,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_chat()
     if command == "start":
         return cmd_start()
+    if command == "update":
+        return cmd_update()
     if command == "installservice":
         return cmd_install_service()
     if command == "uninstallservice":

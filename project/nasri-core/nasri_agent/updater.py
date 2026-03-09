@@ -59,8 +59,19 @@ def maybe_update() -> bool:
         _update_state(last_update_result=f"error:pull-failed:{pull_out[:120]}")
         return False
 
+    # Önce bağımlılıkları güncelle, sonra paketi kur
+    req_file = repo / "project" / "nasri-core" / "requirements.txt"
+    if req_file.exists():
+        rc_req, req_out = _run(
+            [sys.executable, "-m", "pip", "install", "-r", str(req_file), "--quiet"],
+            cwd=repo,
+        )
+        if rc_req != 0:
+            _update_state(last_update_result=f"error:requirements-failed:{req_out[:120]}")
+            return False
+
     rc_pip, pip_out = _run(
-        [sys.executable, "-m", "pip", "install", "-e", "project/nasri-core"],
+        [sys.executable, "-m", "pip", "install", "-e", "project/nasri-core", "--quiet"],
         cwd=repo,
     )
     if rc_pip != 0:

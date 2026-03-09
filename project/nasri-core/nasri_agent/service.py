@@ -162,7 +162,12 @@ def run_service() -> None:
                     _write_state(
                         last_update_result="ok:updated",
                         installed_version=local_version(),
+                        status="restarting",
                     )
+                    # Yeni kodu yüklemek için süreci yeniden başlat
+                    _stop_api_server(_api_proc)
+                    _release_lock()
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
             time.sleep(30)
 
         _write_state(status="stopped")
