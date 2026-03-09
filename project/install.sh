@@ -69,7 +69,7 @@ print('')
 PYBOX
 
 while true; do
-    read -r -p "$(echo -e "${CYAN}Onaylıyor musunuz? [E/H]:${NC} ")" ONAY
+    read -r -p "$(echo -e "${CYAN}Onaylıyor musunuz? [E/H]:${NC} ")" ONAY </dev/tty
     case "${ONAY^^}" in
         E|EVET)
             echo ""
