@@ -19,8 +19,17 @@ warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[✗]${NC} $*"; }
 step() { echo -e "\n${CYAN}══════════════════════════════════════${NC}"; echo -e "${CYAN}  $*${NC}"; echo -e "${CYAN}══════════════════════════════════════${NC}"; }
 
+# --- Gerçek kullanıcıyı tespit et (sudo ile çalışılıyorsa) ---
+if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+    ACTUAL_USER="$SUDO_USER"
+    ACTUAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    ACTUAL_USER="$(id -un)"
+    ACTUAL_HOME="$HOME"
+fi
+
 # --- Yapılandırma ---
-NASRI_HOME="${NASRI_HOME:-$HOME/.nasri}"
+NASRI_HOME="${NASRI_HOME:-$ACTUAL_HOME/.nasri}"
 NASRI_SRC="$NASRI_HOME/src"
 NASRI_VENV="$NASRI_HOME/venv"
 NASRI_DATA_DIR="$NASRI_HOME/data"
@@ -30,7 +39,14 @@ OLLAMA_MODEL="${NASRI_MODEL:-llama3}"
 API_PORT="${NASRI_API_PORT:-8000}"
 MAX_RETRY=3
 
-mkdir -p "$NASRI_HOME" "$NASRI_DATA_DIR"
+# nasri binary hedefi: root ise sistem geneli, değilse kullanıcıya özel
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    NASRI_BIN_DIR="/usr/local/bin"
+else
+    NASRI_BIN_DIR="$ACTUAL_HOME/.local/bin"
+fi
+
+mkdir -p "$NASRI_HOME" "$NASRI_DATA_DIR" "$NASRI_BIN_DIR"
 exec > >(tee -a "$NASRI_LOG") 2>&1
 
 # =============================================================================
@@ -417,29 +433,31 @@ ok "Yapılandırma hazır ($ENV_FILE)"
 # =============================================================================
 step "7/7 — Servis kurulumu"
 
-# nasri komutunu PATH'e ekle
-mkdir -p "$HOME/.local/bin"
-cat > "$HOME/.local/bin/nasri" <<NASRI_CMD
+# nasri wrapper binary'sini kur
+cat > "$NASRI_BIN_DIR/nasri" <<NASRI_CMD
 #!/usr/bin/env bash
 export NASRI_INSTALL_DIR="$NASRI_SRC"
 export NASRI_DATA_DIR="$NASRI_DATA_DIR"
 export NASRI_API_PORT="$API_PORT"
 exec "$NASRI_VENV/bin/nasri" "\$@"
 NASRI_CMD
-chmod +x "$HOME/.local/bin/nasri"
+chmod +x "$NASRI_BIN_DIR/nasri"
+ok "nasri komutu kuruldu: $NASRI_BIN_DIR/nasri"
 
-# PATH kalıcı hale getir
-export PATH="$HOME/.local/bin:$PATH"
-for rc in "$HOME/.bashrc" "$HOME/.profile" "$HOME/.zshrc"; do
-    if [ -f "$rc" ] && ! grep -q '.local/bin' "$rc"; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$rc"
-    fi
-done
+# ~/.local/bin için PATH (root değilse)
+if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    export PATH="$NASRI_BIN_DIR:$PATH"
+    for rc in "$ACTUAL_HOME/.bashrc" "$ACTUAL_HOME/.profile" "$ACTUAL_HOME/.zshrc"; do
+        if [ -f "$rc" ] && ! grep -q "$NASRI_BIN_DIR" "$rc"; then
+            echo "export PATH=\"$NASRI_BIN_DIR:\$PATH\"" >> "$rc"
+        fi
+    done
+fi
 
 # Systemd servisi kur
 if command_exists systemctl && [ "$OS" = "Linux" ]; then
     NASRI_INSTALL_DIR="$NASRI_SRC" NASRI_DATA_DIR="$NASRI_DATA_DIR" \
-    NASRI_API_PORT="$API_PORT" \
+    NASRI_API_PORT="$API_PORT" NASRI_SERVICE_USER="$ACTUAL_USER" \
     "$NASRI_VENV/bin/nasri" install-service 2>/dev/null && ok "Systemd servisi kuruldu"
 
     systemctl start nasri.service 2>/dev/null || true
@@ -482,13 +500,12 @@ echo -e "    ${GREEN}nasri /chat${NC}     — sohbet baslat"
 echo -e "    ${GREEN}nasri start${NC}     — servisi on planda calistir"
 echo ""
 
-if ! command_exists nasri; then
-    echo -e "  ${YELLOW}PATH güncellemesi için:${NC}"
-    echo -e "    ${GREEN}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
-    echo -e "  veya yeni terminal aç."
+if [ "${EUID:-$(id -u)}" -ne 0 ] && ! command_exists nasri; then
+    echo -e "  ${YELLOW}PATH güncellemesi için yeni terminal aç veya:${NC}"
+    echo -e "    ${GREEN}export PATH=\"$NASRI_BIN_DIR:\$PATH\"${NC}"
     echo ""
 fi
 
 # Son durum kontrolü
-"$HOME/.local/bin/nasri" /status 2>/dev/null || \
+"$NASRI_BIN_DIR/nasri" /status 2>/dev/null || \
     "$NASRI_VENV/bin/nasri" /status 2>/dev/null || true
