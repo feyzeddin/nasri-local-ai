@@ -54,7 +54,7 @@ def maybe_update() -> bool:
         _update_state(last_update_result="ok:already-latest", installed_version=local_version())
         return False
 
-    rc_pull, pull_out = _run(["git", "pull", "--ff-only", "origin", "main"], cwd=repo)
+    rc_pull, pull_out = _run(["git", "reset", "--hard", "origin/main"], cwd=repo)
     if rc_pull != 0:
         _update_state(last_update_result=f"error:pull-failed:{pull_out[:120]}")
         return False
