@@ -154,7 +154,11 @@ def run_service() -> None:
                 current = {}
 
             last_checked = current.get("last_update_check")
-            if should_check_update(last_checked):
+            try:
+                interval_hours = int(os.getenv("NASRI_UPDATE_INTERVAL_HOURS", "24"))
+            except ValueError:
+                interval_hours = 24
+            if should_check_update(last_checked, interval_hours=max(1, interval_hours)):
                 now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
                 _write_state(last_update_check=now_iso)
                 updated = maybe_update()

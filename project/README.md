@@ -20,6 +20,7 @@ Kurulum sonrası servis otomatik kurulur ve açılışta yeniden ayağa kalkar.
 - `nasri /status`
 - `nasri /version`
 - `nasri /help`
+- `nasri telegram-setup`
 
 `/status` çıktısı:
 
@@ -67,6 +68,8 @@ Detay: `docs/BRANCH_STRATEGY.md`
 GitHub kurulum adımları: `docs/GITHUB_SETUP.md`
 Nasri kurulum/servis: `docs/NASRI_INSTALL_AND_SERVICE.md`
 CI/CD akışı: `docs/CICD_PIPELINE.md`
+Release notları: `CHANGELOG.md`
+Güncelleme manifesti: `UPDATE_MANIFEST.json`
 
 ## GitHub Koruma Kuralları
 

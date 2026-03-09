@@ -34,6 +34,7 @@ from app.api.pricing import router as pricing_router
 from app.api.fine_tuning import router as fine_tuning_router
 from app.api.agent_network import router as agent_network_router
 from app.api.international import router as international_router
+from app.api.messaging import router as messaging_router
 from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
@@ -43,7 +44,7 @@ from app.workers.maintenance import start_maintenance_worker, stop_maintenance_w
 def _create_app() -> FastAPI:
     settings = get_settings()
 
-    application = FastAPI(title="nasri-core", version="0.1.0")
+    application = FastAPI(title="nasri-core", version=settings.nasri_version)
 
     # F12.2 — CORS
     application.add_middleware(
@@ -94,6 +95,7 @@ def _create_app() -> FastAPI:
     application.include_router(fine_tuning_router)
     application.include_router(agent_network_router)
     application.include_router(international_router)
+    application.include_router(messaging_router)
 
     @application.on_event("startup")
     async def _startup_maintenance() -> None:

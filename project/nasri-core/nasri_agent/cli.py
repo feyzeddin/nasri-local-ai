@@ -11,6 +11,7 @@ def _help_text() -> str:
 /chat     Ollama ile sohbet baslat
 start     Servisi foreground baslat
 update    Guncelleme kontrol et ve uygula
+telegram-setup Telegram bot ayarlarini yapilandir
 """
 
 
@@ -109,6 +110,12 @@ def cmd_uninstall_service() -> int:
     return 0
 
 
+def cmd_telegram_setup() -> int:
+    from .telegram_setup import run_telegram_setup
+
+    return run_telegram_setup()
+
+
 def _normalize(raw: str) -> str:
     return raw.strip().lower().replace("--", "").replace("/", "").replace("-", "")
 
@@ -135,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_install_service()
     if command == "uninstallservice":
         return cmd_uninstall_service()
+    if command in {"telegramsetup", "telegram"}:
+        return cmd_telegram_setup()
 
     print(f"Bilinmeyen komut: {args.command}")
     print(_help_text())

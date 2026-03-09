@@ -399,6 +399,13 @@ class Settings:
         self.agent_network_max_agents: int = int(
             os.getenv("AGENT_NETWORK_MAX_AGENTS", "6")
         )
+        # F4.04 — Enterprise module
+        self.enterprise_module_enabled: bool = os.getenv(
+            "ENTERPRISE_MODULE_ENABLED", "1"
+        ) in {"1", "true", "True"}
+        self.enterprise_base_monthly_price: float = float(
+            os.getenv("ENTERPRISE_BASE_MONTHLY_PRICE", "49999")
+        )
         # F4.05 — Internationalization + GDPR controls
         self.supported_locales: list[str] = [
             x.strip().lower()
@@ -406,6 +413,31 @@ class Settings:
             if x.strip()
         ]
         self.default_locale: str = os.getenv("DEFAULT_LOCALE", "tr").strip().lower()
+        # F4.06 — Messaging bridge (Telegram / WhatsApp)
+        self.nasri_version: str = os.getenv("NASRI_VERSION", "0.2.0").strip()
+        self.telegram_enabled: bool = os.getenv("TELEGRAM_ENABLED", "0") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        self.telegram_webhook_secret: str = os.getenv(
+            "TELEGRAM_WEBHOOK_SECRET", ""
+        ).strip()
+        self.whatsapp_enabled: bool = os.getenv("WHATSAPP_ENABLED", "0") in {
+            "1",
+            "true",
+            "True",
+        }
+        self.whatsapp_verify_token: str = os.getenv(
+            "WHATSAPP_VERIFY_TOKEN", ""
+        ).strip()
+        self.whatsapp_access_token: str = os.getenv(
+            "WHATSAPP_ACCESS_TOKEN", ""
+        ).strip()
+        self.whatsapp_phone_number_id: str = os.getenv(
+            "WHATSAPP_PHONE_NUMBER_ID", ""
+        ).strip()
 
     def vault_key_bytes(self) -> bytes:
         """AES-256 için 32-byte anahtar türetir."""

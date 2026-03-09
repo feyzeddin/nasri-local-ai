@@ -113,6 +113,7 @@ def test_run_service_writes_api_port_to_state(monkeypatch, tmp_path):
     with (
         patch("nasri_agent.service.subprocess.Popen", return_value=mock_proc),
         patch("nasri_agent.service.should_check_update", return_value=False),
+        patch("nasri_agent.service._run_preflight_with_heal", return_value=True),
         patch("nasri_agent.service.time.sleep", side_effect=_stop_after_first_write),
     ):
         svc_module.RUNNING = True

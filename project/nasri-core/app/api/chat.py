@@ -30,6 +30,7 @@ from app.schemas.chat import (
     SessionStartResponse,
 )
 from app.services.llm import OllamaClient, OllamaError
+from app.services.model_router import ModelRouterError, route_chat
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -77,6 +78,21 @@ async def _build_messages(
     messages.extend(history)
     messages.append({"role": "user", "content": new_message})
     return messages
+
+
+def _messages_to_prompt(messages: list[dict[str, str]]) -> str:
+    lines: list[str] = []
+    for msg in messages[-10:]:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "system":
+            lines.append(f"Sistem: {content}")
+        elif role == "assistant":
+            lines.append(f"Nasri: {content}")
+        else:
+            lines.append(f"Kullanıcı: {content}")
+    lines.append("Nasri:")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -170,11 +186,14 @@ async def chat(body: ChatRequest) -> ChatResponse:
     """
     session_id = _ensure_session(body.session_id)
     messages = await _build_messages(session_id, body.message)
-    client = _make_client()
-
+    prompt = _messages_to_prompt(messages)
     try:
-        reply = await client.chat(messages)
-    except OllamaError as exc:
+        routed = await route_chat(
+            prompt=prompt,
+            system_prompt=await _get_system_prompt(session_id),
+        )
+        reply = routed.reply
+    except ModelRouterError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     await append_messages(

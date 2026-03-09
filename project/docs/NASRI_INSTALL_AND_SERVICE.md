@@ -37,6 +37,15 @@ Servis 30 saniyede bir dongu calistirir, fakat update kontrolunu 24 saatte bir y
 - `git fetch origin main`
 - `HEAD` ve `origin/main` karsilastir
 - fark varsa `git pull --ff-only origin main`
-- sonra `pip install -e project/nasri-core`
+- `project/UPDATE_MANIFEST.json` okunur
+- Python bagimliliklari (`requirements.txt`) kurulup editable paketler guncellenir
+- `.env.example` icindeki yeni anahtarlar `.env` dosyasina eklenir
 
 Durum bilgileri `NASRI_DATA_DIR/state.json` icine yazilir.
+
+## Telegram Kurulumu (v0.2.0)
+
+- `nasri telegram-setup`
+- Komut sirasinda `TELEGRAM_BOT_TOKEN` istenir.
+- Opsiyonel public webhook URL verilirse Telegram `setWebhook` otomatik cagirilir.
+- Girilen degerler `project/nasri-core/.env` dosyasina yazilir.

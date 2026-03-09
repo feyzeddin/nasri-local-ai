@@ -32,3 +32,4 @@ def test_help_lists_commands(capsys):
     assert "/status" in out
     assert "/version" in out
     assert "/help" in out
+    assert "telegram-setup" in out

@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "dependencies": {
+    "python_requirements": "project/nasri-core/requirements.txt",
+    "editable_packages": [
+      "project/nasri-core"
+    ]
+  },
+  "post_update_commands": [],
+  "notes_file": "project/CHANGELOG.md"
+}

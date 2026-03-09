@@ -175,6 +175,26 @@ FastAPI + Redis + Ollama entegrasyonu için backend servis alanı.
 - `POST /international/gdpr/erase`
 - Locale tercihleri (`tr/en/de`) ve profil verileri için export/erase akışı sağlar
 
+## Messaging Bridge (Telegram + WhatsApp)
+
+- `POST /messaging/pairings/start` (admin/operator)
+- `POST /messaging/pairings/confirm` (admin/operator)
+- `GET /messaging/pairings/owner`
+- `DELETE /messaging/pairings/owner`
+- `POST /messaging/telegram/webhook`
+- `GET /messaging/whatsapp/webhook` (Meta verify)
+- `POST /messaging/whatsapp/webhook`
+- Sahip eşleşmesi tek kullanımlık pairing code + admin onayı ile yapılır
+- Sadece eşleşmiş sahip hesabından gelen mesajlar LLM'e yönlendirilir
+- Kanal komutları: `/pair`, `/help`, `/status`, `/version`
+- Sohbet yanıtlama akışı: önce local model, gerekirse free/paid model fallback (model-router)
+
+### Telegram Hızlı Kurulum
+
+- CLI: `nasri telegram-setup`
+- Bu komut token alır, `.env` içine `TELEGRAM_*` ayarlarını yazar
+- Public URL verirsen webhook'u otomatik bağlar (`/messaging/telegram/webhook`)
+
 ## Proaktif Öneri Motoru
 
 - `GET /suggestions/proactive?profile_id=...`
