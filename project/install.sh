@@ -506,6 +506,12 @@ if [ "${EUID:-$(id -u)}" -ne 0 ] && ! command_exists nasri; then
     echo ""
 fi
 
+# Dosya sahipliğini gerçek kullanıcıya ver (sudo ile kurulmuşsa)
+if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+    chown -R "$ACTUAL_USER:$ACTUAL_USER" "$NASRI_HOME" 2>/dev/null && \
+        ok "Dosya sahipliği $ACTUAL_USER'a devredildi"
+fi
+
 # Son durum kontrolü
 "$NASRI_BIN_DIR/nasri" /status 2>/dev/null || \
     "$NASRI_VENV/bin/nasri" /status 2>/dev/null || true

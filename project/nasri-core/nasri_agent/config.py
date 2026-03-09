@@ -41,7 +41,7 @@ def repo_version_file() -> Path:
 def local_version() -> str:
     version_path = repo_version_file()
     if version_path.exists():
-        return version_path.read_text(encoding="utf-8").strip()
+        return version_path.read_text(encoding="utf-8-sig").strip()
     return __version__
 
 
