@@ -424,6 +424,12 @@ class Settings:
         self.telegram_webhook_secret: str = os.getenv(
             "TELEGRAM_WEBHOOK_SECRET", ""
         ).strip()
+        # Polling modu: public IP olmayan cihazlar için (webhook yerine)
+        self.telegram_polling: bool = os.getenv("TELEGRAM_POLLING", "0") in {
+            "1",
+            "true",
+            "True",
+        }
         self.whatsapp_enabled: bool = os.getenv("WHATSAPP_ENABLED", "0") in {
             "1",
             "true",

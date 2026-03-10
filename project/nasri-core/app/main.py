@@ -39,6 +39,7 @@ from app.core.health import build_readiness
 from app.core.security import AuthSession, rate_limit, require_roles, verify_api_key
 from app.core.settings import get_settings
 from app.workers.maintenance import start_maintenance_worker, stop_maintenance_worker
+from app.workers.telegram_polling import start_telegram_polling, stop_telegram_polling
 
 
 def _create_app() -> FastAPI:
@@ -100,10 +101,12 @@ def _create_app() -> FastAPI:
     @application.on_event("startup")
     async def _startup_maintenance() -> None:
         start_maintenance_worker()
+        start_telegram_polling()
 
     @application.on_event("shutdown")
     async def _shutdown_maintenance() -> None:
         await stop_maintenance_worker()
+        await stop_telegram_polling()
 
     @application.get("/health")
     def health() -> dict[str, str]:
