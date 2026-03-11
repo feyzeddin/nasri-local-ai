@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .config import install_dir, local_version, state_file
+from .notifications import push as _notify
 
 
 def _run(args: list[str], cwd: Path | None = None) -> tuple[int, str]:
@@ -182,11 +183,17 @@ def maybe_update() -> bool:
         _update_state(last_update_result=f"error:{post_detail}")
         return False
 
+    new_version = local_version()
     _update_state(
         last_update_result="ok:updated",
-        installed_version=local_version(),
+        installed_version=new_version,
         update_requirements=req_detail,
         update_post_step=post_detail,
+    )
+    _notify(
+        title=f"Nasrî {new_version} yüklendi",
+        message="Yeni sürüm başarıyla güncellendi. Servis yeniden başlatılıyor.",
+        kind="update",
     )
     return True
 

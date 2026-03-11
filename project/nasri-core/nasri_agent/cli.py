@@ -11,6 +11,7 @@ def _help_text() -> str:
 /chat     Ollama ile sohbet baslat
 start     Servisi foreground baslat
 update    Guncelleme kontrol et ve uygula
+watch     Canli bildirim panelini ac
 telegram-setup Telegram bot ayarlarini yapilandir
 """
 
@@ -110,6 +111,12 @@ def cmd_uninstall_service() -> int:
     return 0
 
 
+def cmd_watch() -> int:
+    from .tui import run_watch
+
+    return run_watch()
+
+
 def cmd_telegram_setup() -> int:
     from .telegram_setup import run_telegram_setup
 
@@ -142,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_install_service()
     if command == "uninstallservice":
         return cmd_uninstall_service()
+    if command == "watch":
+        return cmd_watch()
     if command in {"telegramsetup", "telegram"}:
         return cmd_telegram_setup()
 

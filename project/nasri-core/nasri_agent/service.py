@@ -19,6 +19,7 @@ from .config import (
 )
 from .healer import heal_results
 from .preflight import run_preflight
+from .notifications import push as _notify
 from .updater import maybe_update, should_check_update
 
 RUNNING = True
@@ -132,15 +133,29 @@ def run_service() -> None:
     _api_proc = _start_api_server()
 
     try:
+        current_version = local_version()
         _write_state(
             status="running",
             version=__version__,
-            installed_version=local_version(),
+            installed_version=current_version,
             started_at=dt.datetime.now(dt.timezone.utc).isoformat(),
             platform=platform.platform(),
             api_port=str(port),
             api_pid=str(_api_proc.pid),
         )
+        # Versiyon değişmişse başlangıç bildirimi gönder
+        try:
+            from .config import state_file as _sf
+            _prev_state = json.loads(_sf().read_text(encoding="utf-8")) if _sf().exists() else {}
+            _prev_version = _prev_state.get("installed_version", "")
+        except Exception:
+            _prev_version = ""
+        if _prev_version and _prev_version != current_version:
+            _notify(
+                title=f"Nasrî {current_version} başlatıldı",
+                message=f"Önceki sürüm: {_prev_version}",
+                kind="update",
+            )
         while RUNNING:
             # Uvicorn beklenmedik şekilde çöktüyse yeniden başlat
             if _api_proc.poll() is not None:
