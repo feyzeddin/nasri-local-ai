@@ -232,11 +232,24 @@ def run_service() -> None:
                 message=f"Önceki sürüm: {_prev_version}",
                 kind="update",
             )
+        _running_version = __version__
         while RUNNING:
             # Uvicorn beklenmedik şekilde çöktüyse yeniden başlat
             if _api_proc.poll() is not None:
                 _api_proc = _start_api_server()
                 _write_state(api_pid=str(_api_proc.pid))
+
+            # Kod güncellemesini algıla: VERSION dosyası değiştiyse yeniden başlat
+            try:
+                _file_version = local_version()
+                if _file_version and _file_version != _running_version:
+                    print(f"[nasri] Yeni versiyon algılandı: {_running_version} → {_file_version}, yeniden başlatılıyor...")
+                    _write_state(status="restarting", installed_version=_file_version)
+                    _stop_api_server(_api_proc)
+                    _release_lock()
+                    os.execv(sys.executable, [sys.executable, "-m", "nasri_agent.service"])
+            except Exception:
+                pass
 
             # Model değişikliği veya başka bir nedenden yeniden başlatma isteği
             from .config import data_dir as _data_dir

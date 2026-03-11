@@ -121,35 +121,51 @@ def _fetch_weather(city: str) -> str:
         return f"Hava durumu alınamadı: {exc}"
 
 
+def _normalize_query(text: str) -> str:
+    """
+    Sorguda küçük yazım hatalarını giderir:
+    - Ardışık tekrar eden harfleri teke indirir (ssaat→saat, haava→hava)
+    - Küçük harfe çevirir
+    """
+    import re as _r
+    return _r.sub(r'(.)\1+', r'\1', text.lower().strip())
+
+
 def _try_local_answer(message: str) -> str | None:
     """
     Tarih/saat/hava durumu gibi sorguları Ollama'ya iletmeden yanıtlar.
+    Yazım hataları normalize edilerek eşleştirme yapılır.
     None dönerse normal API akışına devam edilir.
     """
     msg = message.strip()
+    # Hem orijinal hem normalize edilmiş sorguyu dene
+    msg_norm = _normalize_query(msg)
+    def _match(pattern: "_re.Pattern[str]", text: str) -> bool:
+        return bool(pattern.search(text) or pattern.search(msg_norm))
+
     try:
         from .time_sync import format_datetime_tr, get_current_datetime
         now = get_current_datetime()
 
-        if _BOTH_PATTERNS.search(msg) or (
-            _DATE_PATTERNS.search(msg) and _TIME_PATTERNS.search(msg)
+        if _match(_BOTH_PATTERNS, msg) or (
+            _match(_DATE_PATTERNS, msg) and _match(_TIME_PATTERNS, msg)
         ):
             return format_datetime_tr(now)
 
-        if _DATE_PATTERNS.search(msg):
+        if _match(_DATE_PATTERNS, msg):
             from .time_sync import _TR_WEEKDAYS, _TR_MONTHS
             return (
                 f"{_TR_WEEKDAYS[now.weekday()]}, "
                 f"{now.day} {_TR_MONTHS[now.month]} {now.year}"
             )
 
-        if _TIME_PATTERNS.search(msg):
+        if _match(_TIME_PATTERNS, msg):
             return now.strftime("%H:%M")
 
     except Exception:
         pass
 
-    if _WEATHER_PATTERNS.search(msg):
+    if _match(_WEATHER_PATTERNS, msg):
         city = _extract_city(msg)
         return _fetch_weather(city)
 

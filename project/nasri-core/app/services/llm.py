@@ -45,6 +45,10 @@ class OllamaClient:
     async def chat(self, messages: list[dict[str, str]]) -> str:
         """Ollama'ya istek atar, tam yaniti string olarak dondurur.
 
+        stream=false yerine streaming kullanir; Ollama'nin bellekte tam
+        yaniti biriktirmesini onler, daha az bellek tuketir ve daha
+        guvenilirdir (ozellikle buyuk modellerde).
+
         Args:
             messages: [{"role": "user"|"assistant"|"system", "content": "..."}]
 
@@ -54,23 +58,10 @@ class OllamaClient:
         Raises:
             OllamaError: Baglanti hatasi veya HTTP hatasi durumunda.
         """
-        payload = self._build_payload(messages, stream=False)
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response = await client.post(
-                    f"{self._base_url}/api/chat",
-                    json=payload,
-                )
-                response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise OllamaError(
-                f"Ollama HTTP hatasi: {exc.response.status_code}"
-            ) from exc
-        except httpx.RequestError as exc:
-            raise OllamaError(f"Ollama baglanti hatasi: {exc}") from exc
-
-        data = response.json()
-        return self._extract_content(data)
+        chunks: list[str] = []
+        async for chunk in self.chat_stream(messages):
+            chunks.append(chunk)
+        return "".join(chunks)
 
     async def chat_stream(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
         """Ollama'ya istek atar, modelin urettigi metin parcalarini akitar.
