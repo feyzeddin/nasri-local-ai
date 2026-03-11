@@ -322,7 +322,20 @@ async def format_command_reply(
         return f"Nasri {get_settings().nasri_version}"
 
     if lower in {"/pair", "pair"}:
-        return await _auto_pair(channel, external_user_id, chat_id)
+        existing = await get_owner_binding()
+        if existing:
+            ch = _normalize_channel(channel)
+            if existing["channel"] == ch and existing["external_user_id"] == external_user_id.strip():
+                return "Bu hesap zaten Nasri ile eşleşmiş. Doğrudan yazabilirsin."
+            return "Bu bot başka bir hesaba bağlı. Mevcut sahipten /unpair yapmasını isteyin."
+        started = await start_pairing(channel, external_user_id, chat_id=chat_id)
+        code = started["pair_code"]
+        ttl_min = started["expires_in_seconds"] // 60
+        return (
+            f"Eşleşme kodun: {code}\n"
+            f"Nasri panelinde (nasri watch) bu kodu yaz ve onayla.\n"
+            f"Kod {ttl_min} dakika geçerlidir."
+        )
 
     if lower in {"/unpair", "unpair"}:
         return await _unpair(channel, external_user_id)

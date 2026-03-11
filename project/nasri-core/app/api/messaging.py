@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 
 from app.core.security import AuthSession, require_roles
@@ -23,6 +25,25 @@ from app.services.messaging_bridge import (
 )
 
 router = APIRouter(prefix="/messaging", tags=["messaging"])
+
+
+@router.get("/pairings/pending/{code}")
+async def pairing_pending_check(code: str) -> dict:
+    """Pair kodunun geçerliliğini kontrol eder. Auth gerektirmez — sadece okuma."""
+    from app.core.redis import get_redis
+    raw = await get_redis().get(f"messaging:pair:{code.upper()}")
+    if not raw:
+        raise HTTPException(status_code=404, detail="Kod bulunamadı veya süresi dolmuş.")
+    try:
+        data = json.loads(raw)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Kod verisi bozuk.") from exc
+    return {
+        "code": code.upper(),
+        "channel": data.get("channel", "?"),
+        "external_user_id": data.get("external_user_id", "?"),
+        "created_at": data.get("created_at", ""),
+    }
 
 
 @router.post("/pairings/start", response_model=PairingStartResponse)

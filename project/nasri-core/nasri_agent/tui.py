@@ -379,28 +379,141 @@ Screen {
 
     # Streaming sırasında input kilidi
     _responding: bool = False
+    # Telegram eşleşme onayı bekleniyorsa kod burada saklanır
+    _pending_pair_code: str | None = None
+
+    # Pair kodu formatı: _make_pair_code ile üretilen 8 karakter
+    _PAIR_CODE_RE = _re.compile(r'^[A-HJ-NP-Z2-9]{8}$')
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if self._responding:
-            return
         message = event.value.strip()
         if not message:
             return
         event.input.value = ""
-        self.query_one("#chat_log", RichLog).write(
-            f"[bold white]Sen:[/bold white] {message}"
-        )
+        chat_log = self.query_one("#chat_log", RichLog)
+        inp = self.query_one("#chat_input", Input)
+
+        # Eşleşme onayı bekleniyor → 1/2 ile yanıt ver
+        if self._pending_pair_code:
+            chat_log.write(f"[bold white]Sen:[/bold white] {message}")
+            low = message.strip().lower()
+            if low in {"1", "evet", "e", "yes", "y"}:
+                self._do_confirm_pair(self._pending_pair_code)
+            elif low in {"2", "hayır", "hayir", "h", "n", "no", "iptal"}:
+                self._pending_pair_code = None
+                chat_log.write("[bold cyan]Nasrî:[/bold cyan] Eşleşme iptal edildi.")
+                inp.focus()
+            else:
+                chat_log.write(
+                    "[bold cyan]Nasrî:[/bold cyan] "
+                    "Lütfen [bold green]1[/bold green] (Evet) veya "
+                    "[bold red]2[/bold red] (Hayır) yazın."
+                )
+                inp.focus()
+            return
+
+        if self._responding:
+            return
+
+        chat_log.write(f"[bold white]Sen:[/bold white] {message}")
+
+        # Pair kodu tanıma (8 karakter, özel alfabe) → onay dialogu
+        if self._PAIR_CODE_RE.match(message.strip().upper()):
+            self._do_check_pair_code(message.strip().upper())
+            return
+
         # Tarih/saat → anında yerel yanıt (blocking I/O yok, senkron olabilir)
         if not _WEATHER_PATTERNS.search(message):
             local_reply = _try_local_answer(message)
             if local_reply is not None:
-                self.query_one("#chat_log", RichLog).write(
-                    f"[bold cyan]Nasrî:[/bold cyan] {local_reply}"
-                )
-                self.query_one("#chat_input", Input).focus()
+                chat_log.write(f"[bold cyan]Nasrî:[/bold cyan] {local_reply}")
+                inp.focus()
                 return
         # Hava durumu veya LLM soruları → thread'de çalıştır
         self._stream_message(message)
+
+    @work(thread=True)
+    def _do_check_pair_code(self, code: str) -> None:
+        """Pair kodunu API'de kontrol eder, geçerliyse onay dialogu gösterir."""
+        state = _load_state()
+        port = state.get("api_port", "8000")
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.get(f"http://localhost:{port}/messaging/pairings/pending/{code}")
+            if resp.status_code == 200:
+                data = resp.json()
+                channel = data.get("channel", "?")
+                user_id = data.get("external_user_id", "?")
+                self.call_from_thread(self._show_pair_confirm, code, channel, user_id)
+            else:
+                self.call_from_thread(
+                    self.query_one("#chat_log", RichLog).write,
+                    "[bold cyan]Nasrî:[/bold cyan] Bu kod geçerli değil veya süresi dolmuş.",
+                )
+                self.call_from_thread(self.query_one("#chat_input", Input).focus)
+        except Exception as exc:
+            self.call_from_thread(
+                self.query_one("#chat_log", RichLog).write,
+                f"[bold cyan]Nasrî:[/bold cyan] Kod kontrol hatası: {exc}",
+            )
+            self.call_from_thread(self.query_one("#chat_input", Input).focus)
+
+    def _show_pair_confirm(self, code: str, channel: str, user_id: str) -> None:
+        self._pending_pair_code = code
+        self.query_one("#chat_log", RichLog).write(
+            f"[bold cyan]Nasrî:[/bold cyan] "
+            f"[bold yellow]{code}[/bold yellow] kodu ile "
+            f"[bold]{channel}[/bold] kanalından "
+            f"'[bold]{user_id}[/bold]' bağlanmaya çalışıyor.\n"
+            f"Onaylıyor musunuz?\n"
+            f"  [bold green]1[/bold green] - Evet\n"
+            f"  [bold red]2[/bold red]  - Hayır"
+        )
+        self.query_one("#chat_input", Input).focus()
+
+    @work(thread=True)
+    def _do_confirm_pair(self, code: str) -> None:
+        """Pair kodunu onaylar, binding'i kalıcı olarak kaydeder."""
+        state = _load_state()
+        port = state.get("api_port", "8000")
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                resp = client.post(
+                    f"http://localhost:{port}/messaging/pairings/confirm",
+                    json={"pair_code": code, "force_replace_owner": False},
+                )
+            if resp.status_code == 200:
+                data = resp.json()
+                channel = data.get("channel", "?")
+                self.call_from_thread(self._on_pair_success, channel)
+            else:
+                detail = ""
+                try:
+                    detail = resp.json().get("detail", "")
+                except Exception:
+                    pass
+                self.call_from_thread(
+                    self.query_one("#chat_log", RichLog).write,
+                    f"[bold cyan]Nasrî:[/bold cyan] [bold red]Eşleşme hatası:[/bold red] {detail or resp.status_code}",
+                )
+        except Exception as exc:
+            self.call_from_thread(
+                self.query_one("#chat_log", RichLog).write,
+                f"[bold cyan]Nasrî:[/bold cyan] [bold red]Eşleşme hatası:[/bold red] {exc}",
+            )
+        finally:
+            self.call_from_thread(self._clear_pending_pair)
+
+    def _on_pair_success(self, channel: str) -> None:
+        self.query_one("#chat_log", RichLog).write(
+            f"[bold cyan]Nasrî:[/bold cyan] "
+            f"[bold green]Eşleşme tamamlandı![/bold green] "
+            f"{channel} kanalı kalıcı olarak bağlandı."
+        )
+
+    def _clear_pending_pair(self) -> None:
+        self._pending_pair_code = None
+        self.query_one("#chat_input", Input).focus()
 
     @work(thread=True)
     def _stream_message(self, message: str) -> None:
