@@ -214,7 +214,12 @@ Screen {
     # Chat
     # ------------------------------------------------------------------ #
 
+    # Streaming sırasında input kilidi
+    _responding: bool = False
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        if self._responding:
+            return
         message = event.value.strip()
         if not message:
             return
@@ -222,27 +227,78 @@ Screen {
         self.query_one("#chat_log", RichLog).write(
             f"[bold white]Sen:[/bold white] {message}"
         )
-        self._send_message(message)
+        self._stream_message(message)
 
     @work(thread=True)
-    def _send_message(self, message: str) -> None:
+    def _stream_message(self, message: str) -> None:
+        """SSE stream ile Ollama'dan yanıt alır, token token gösterir."""
+        self.call_from_thread(self._set_responding, True)
+
         state = _load_state()
         port = state.get("api_port", "8000")
-        try:
-            with httpx.Client(timeout=120) as client:
-                resp = client.post(
-                    f"http://localhost:{port}/chat",
-                    json={"message": message, "session_id": _SESSION_ID},
-                )
-                reply = resp.json().get("reply", "") if resp.status_code == 200 else f"[Hata {resp.status_code}]"
-        except Exception as exc:
-            reply = f"[Bağlantı hatası: {exc}]"
-        self.call_from_thread(self._append_reply, reply)
+        url = f"http://localhost:{port}/chat/stream"
 
-    def _append_reply(self, reply: str) -> None:
-        self.query_one("#chat_log", RichLog).write(
-            f"[bold cyan]Nasrî:[/bold cyan] {reply}"
-        )
+        chunks: list[str] = []
+        error: str | None = None
+
+        try:
+            timeout = httpx.Timeout(connect=5.0, read=45.0, write=5.0, pool=5.0)
+            with httpx.Client(timeout=timeout) as client:
+                with client.stream(
+                    "POST",
+                    url,
+                    json={"message": message, "session_id": _SESSION_ID},
+                ) as resp:
+                    if resp.status_code != 200:
+                        error = f"Sunucu hatası ({resp.status_code}). Servis çalışıyor mu?"
+                    else:
+                        # SSE satırlarını oku, token token göster
+                        for line in resp.iter_lines():
+                            if not line.startswith("data: "):
+                                continue
+                            chunk = line[6:]
+                            if chunk == "[DONE]":
+                                break
+                            if chunk.startswith("[ERROR]"):
+                                error = chunk[7:].strip() or "Bilinmeyen hata"
+                                break
+                            if chunk:
+                                chunks.append(chunk)
+                                # Her ~5 tokende bir UI'ı güncelle (çok sık çağrı engellenir)
+                                if len(chunks) % 5 == 0:
+                                    self.call_from_thread(
+                                        self._update_streaming_reply, "".join(chunks)
+                                    )
+        except httpx.ConnectError:
+            error = "API'ye bağlanılamadı. Nasrî servisi çalışıyor mu? (nasri start)"
+        except httpx.ReadTimeout:
+            error = "Zaman aşımı (45s). Ollama çok yavaş ya da yanıt vermiyor."
+        except Exception as exc:
+            error = f"Bağlantı hatası: {exc}"
+
+        reply = error or "".join(chunks) or "(boş yanıt)"
+        self.call_from_thread(self._finish_reply, reply, is_error=bool(error))
+
+    def _set_responding(self, state: bool) -> None:
+        self._responding = state
+        inp = self.query_one("#chat_input", Input)
+        inp.placeholder = "Nasrî yanıtlıyor..." if state else "Nasrî ile konuş... (Enter ile gönder)"
+        inp.disabled = state
+
+    def _update_streaming_reply(self, partial: str) -> None:
+        """Streaming sırasında durum çubuğunda kısa özet göster."""
+        bar = self.query_one("#status_bar", Static)
+        preview = partial[-40:].replace("\n", " ")
+        bar.update(f"[dim]Nasrî: ...{preview}[/dim]")
+
+    def _finish_reply(self, reply: str, is_error: bool = False) -> None:
+        chat_log = self.query_one("#chat_log", RichLog)
+        if is_error:
+            chat_log.write(f"[bold cyan]Nasrî:[/bold cyan] [red]{reply}[/red]")
+        else:
+            chat_log.write(f"[bold cyan]Nasrî:[/bold cyan] {reply}")
+        self._set_responding(False)
+        self._refresh_status()
         self.query_one("#chat_input", Input).focus()
 
     # ------------------------------------------------------------------ #
@@ -273,6 +329,10 @@ Screen {
 
     def _write_chat(self, msg: str) -> None:
         self.query_one("#chat_log", RichLog).write(msg)
+
+    def _append_reply(self, reply: str) -> None:
+        """Eski non-streaming yol — artık kullanılmıyor, geriye dönük uyumluluk için."""
+        self._finish_reply(reply)
 
     def on_unmount(self) -> None:
         mark_all_read()

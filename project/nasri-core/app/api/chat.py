@@ -30,7 +30,6 @@ from app.schemas.chat import (
     SessionStartResponse,
 )
 from app.services.llm import OllamaClient, OllamaError
-from app.services.model_router import ModelRouterError, route_chat
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -200,20 +199,19 @@ async def chat(body: ChatRequest) -> ChatResponse:
     """Ollama'dan tam yanıtı bekler, JSON olarak döner.
 
     Konuşma geçmişini Redis'ten okur ve günceller.
-    Geliştirme ve test için kullanışlıdır.
+    Mesajlar doğrudan OllamaClient'a iletilir (route_chat bypass).
     Üretim ortamında /chat/stream tercih edilmeli.
     """
     session_id = _ensure_session(body.session_id)
     messages = await _build_messages(session_id, body.message)
-    prompt = _messages_to_prompt(messages)
+    client = _make_client()
     try:
-        routed = await route_chat(
-            prompt=prompt,
-            system_prompt=_inject_datetime(await _get_system_prompt(session_id)),
-        )
-        reply = routed.reply
-    except ModelRouterError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        reply = await client.chat(messages)
+    except OllamaError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama yanıt vermedi: {exc}. Ollama servisini kontrol edin.",
+        ) from exc
 
     await append_messages(
         session_id,
