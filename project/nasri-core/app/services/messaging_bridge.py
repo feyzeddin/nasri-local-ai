@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import secrets
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 
 from app.core.redis import append_messages, get_redis, load_history
 from app.core.settings import get_settings
 from app.services.maintenance import run_maintenance
-from app.services.model_router import ModelRouterError, route_chat
 
 _OWNER_KEY = "messaging:owner"
 _PAIR_PREFIX = "messaging:pair"
@@ -40,6 +40,75 @@ def _normalize_channel(value: str) -> str:
 def _make_pair_code() -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+def _owner_file() -> Path:
+    """Binding'i Redis yanı sıra diske de kaydeder — restart'ta kaybolmaz."""
+    try:
+        from nasri_agent.config import data_dir
+        return data_dir() / "messaging_owner.json"
+    except Exception:
+        return Path.home() / ".nasri-data" / "messaging_owner.json"
+
+
+def _validate_binding(data: dict) -> dict | None:
+    channel = str(data.get("channel") or "")
+    external_user_id = str(data.get("external_user_id") or "")
+    if not channel or not external_user_id:
+        return None
+    return {
+        "channel": channel,
+        "external_user_id": external_user_id,
+        "chat_id": data.get("chat_id"),
+        "linked_at": str(data.get("linked_at") or ""),
+    }
+
+
+async def _save_binding(binding: dict) -> None:
+    """Binding'i hem Redis'e hem diske yazar."""
+    raw = json.dumps(binding, ensure_ascii=False)
+    await get_redis().set(_OWNER_KEY, raw)
+    try:
+        f = _owner_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(binding, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+async def get_owner_binding() -> dict | None:
+    """Redis'ten okur; boşsa diskten yükler ve Redis'e geri yazar."""
+    raw = await get_redis().get(_OWNER_KEY)
+    if raw:
+        try:
+            data = json.loads(raw)
+            return _validate_binding(data)
+        except Exception:
+            pass
+
+    # Redis boş — diskten dene
+    f = _owner_file()
+    if f.exists():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            binding = _validate_binding(data)
+            if binding:
+                # Redis'e geri yaz (restart sonrası senkronizasyon)
+                await get_redis().set(_OWNER_KEY, json.dumps(binding, ensure_ascii=False))
+                return binding
+        except Exception:
+            pass
+
+    return None
+
+
+async def clear_owner_binding() -> bool:
+    deleted = await get_redis().delete(_OWNER_KEY)
+    try:
+        _owner_file().unlink(missing_ok=True)
+    except Exception:
+        pass
+    return int(deleted) > 0
 
 
 async def start_pairing(channel: str, external_user_id: str, chat_id: str | None = None) -> dict:
@@ -91,38 +160,9 @@ async def confirm_pairing(pair_code: str, force_replace_owner: bool = False) -> 
     if not binding["channel"] or not binding["external_user_id"]:
         raise MessagingError("Pairing kaydı eksik.")
 
-    r = get_redis()
-    pipe = r.pipeline()
-    pipe.set(_OWNER_KEY, json.dumps(binding, ensure_ascii=False))
-    pipe.delete(_pair_key(pair_code.strip().upper()))
-    await pipe.execute()
+    await _save_binding(binding)
+    await get_redis().delete(_pair_key(pair_code.strip().upper()))
     return binding
-
-
-async def get_owner_binding() -> dict | None:
-    raw = await get_redis().get(_OWNER_KEY)
-    if not raw:
-        return None
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-
-    channel = str(data.get("channel") or "")
-    external_user_id = str(data.get("external_user_id") or "")
-    if not channel or not external_user_id:
-        return None
-    return {
-        "channel": channel,
-        "external_user_id": external_user_id,
-        "chat_id": data.get("chat_id"),
-        "linked_at": str(data.get("linked_at") or ""),
-    }
-
-
-async def clear_owner_binding() -> bool:
-    deleted = await get_redis().delete(_OWNER_KEY)
-    return int(deleted) > 0
 
 
 async def is_owner(channel: str, external_user_id: str) -> bool:
@@ -133,6 +173,54 @@ async def is_owner(channel: str, external_user_id: str) -> bool:
         binding["channel"] == _normalize_channel(channel)
         and binding["external_user_id"] == external_user_id.strip()
     )
+
+
+async def _auto_pair(channel: str, external_user_id: str, chat_id: str | None) -> str:
+    """
+    Telegram'dan /pair gelince panel gerekmeden doğrudan eşleştirir.
+    - Sahip yoksa: anında eşleştir
+    - Aynı kullanıcıysa: "zaten eşleştin" yaz
+    - Farklı sahip varsa: hata ver (güvenlik)
+    """
+    ch = _normalize_channel(channel)
+    user = external_user_id.strip()
+    existing = await get_owner_binding()
+
+    if existing:
+        if existing["channel"] == ch and existing["external_user_id"] == user:
+            return (
+                "Zaten eşleşmiş durumdasın. Nasri'ye doğrudan yazabilirsin.\n"
+                "Bağlantıyı sıfırlamak için /unpair yaz."
+            )
+        return (
+            "Bu bot başka bir hesaba bağlı.\n"
+            "Sıfırlamak için mevcut sahipten /unpair komutunu çalıştırmasını isteyin."
+        )
+
+    binding = {
+        "channel": ch,
+        "external_user_id": user,
+        "chat_id": (chat_id or "").strip() or None,
+        "linked_at": _utc_now_iso(),
+    }
+    await _save_binding(binding)
+    return (
+        "Eşleşme tamamlandı! Artık Nasri ile konuşabilirsin.\n"
+        "Bağlantıyı kaldırmak için /unpair yaz."
+    )
+
+
+async def _unpair(channel: str, external_user_id: str) -> str:
+    """Sahip eşleşmesini kaldırır — sadece mevcut sahip yapabilir."""
+    ch = _normalize_channel(channel)
+    user = external_user_id.strip()
+    existing = await get_owner_binding()
+    if not existing:
+        return "Zaten eşleşmiş bir hesap yok."
+    if existing["channel"] != ch or existing["external_user_id"] != user:
+        return "Bu işlemi sadece mevcut sahip yapabilir."
+    await clear_owner_binding()
+    return "Eşleşme kaldırıldı. Yeniden bağlanmak için /pair yaz."
 
 
 def _history_as_prompt(messages: list[dict[str, str]], new_message: str) -> str:
@@ -173,14 +261,29 @@ async def ask_nasri(channel: str, external_user_id: str, text: str) -> str:
         reply = local_action_reply
     else:
         history = await load_history(session_id)
-        prompt = _history_as_prompt(history, message)
+        s = get_settings()
+
+        # Sistem promptu + tarih bağlamı
         try:
-            routed = await route_chat(
-                prompt=prompt,
-                system_prompt=get_settings().system_prompt,
-            )
-            reply = routed.reply
-        except ModelRouterError as exc:
+            from nasri_agent.time_sync import get_context_line
+            datetime_ctx = get_context_line()
+        except Exception:
+            import datetime as _dt
+            datetime_ctx = f"Şu anki tarih ve saat: {_dt.datetime.now().strftime('%d.%m.%Y %H:%M')}"
+
+        system_content = f"{datetime_ctx}\n\n{s.system_prompt or ''}".strip()
+
+        # Mesajları Ollama formatında hazırla
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
+        messages.extend(history[-8:])
+        messages.append({"role": "user", "content": message})
+
+        # OllamaClient ile doğrudan Ollama'ya gönder (route_chat bypass)
+        from app.services.llm import OllamaClient, OllamaError
+        client = OllamaClient(base_url=s.ollama_url, model=s.model_name)
+        try:
+            reply = await client.chat(messages)
+        except OllamaError as exc:
             raise MessagingError(str(exc)) from exc
 
     await append_messages(
@@ -193,14 +296,20 @@ async def ask_nasri(channel: str, external_user_id: str, text: str) -> str:
     return reply
 
 
-async def format_command_reply(channel: str, external_user_id: str, text: str) -> str | None:
+async def format_command_reply(
+    channel: str,
+    external_user_id: str,
+    text: str,
+    chat_id: str | None = None,
+) -> str | None:
     content = text.strip()
     lower = content.lower()
 
     if lower in {"/help", "help"}:
         return (
             "Komutlar:\n"
-            "/pair - sahip eşleştirme kodu üret\n"
+            "/pair - bu hesabı Nasri ile eşleştir\n"
+            "/unpair - eşleşmeyi kaldır\n"
             "/status - servis durumunu göster\n"
             "/version - sürümü göster\n"
             "/help - komutları listele"
@@ -213,11 +322,10 @@ async def format_command_reply(channel: str, external_user_id: str, text: str) -
         return f"Nasri {get_settings().nasri_version}"
 
     if lower in {"/pair", "pair"}:
-        started = await start_pairing(channel, external_user_id)
-        return (
-            f"Eşleşme kodun: {started['pair_code']}\n"
-            f"{started['expires_in_seconds']} saniye içinde Nasri panelinden onayla."
-        )
+        return await _auto_pair(channel, external_user_id, chat_id)
+
+    if lower in {"/unpair", "unpair"}:
+        return await _unpair(channel, external_user_id)
 
     return None
 

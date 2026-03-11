@@ -23,12 +23,39 @@ import json
 import uuid
 
 import httpx
-from textual import work
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
-from textual.reactive import reactive
-from textual.widgets import Footer, Input, Label, RichLog, Static
+
+try:
+    from textual import work
+    from textual.app import App, ComposeResult
+    from textual.binding import Binding
+    from textual.containers import Horizontal, Vertical
+    from textual.reactive import reactive
+    from textual.widgets import Footer, Input, Label, RichLog, Static
+    _TEXTUAL_OK = True
+except ImportError:
+    _TEXTUAL_OK = False
+    # textual yoksa sınıf tanımlarını çöktürmemek için stub'lar
+    class App:  # type: ignore[no-redef]
+        pass
+    class ComposeResult:  # type: ignore[no-redef]
+        pass
+    class Binding:  # type: ignore[no-redef]
+        def __init__(self, *a: object, **kw: object) -> None: pass
+    class Horizontal:  # type: ignore[no-redef]
+        pass
+    class Vertical:  # type: ignore[no-redef]
+        pass
+    def reactive(*a: object, **kw: object) -> object: return None  # type: ignore[misc]
+    class Footer: pass  # type: ignore[no-redef]
+    class Input:  # type: ignore[no-redef]
+        pass
+    class Label:  # type: ignore[no-redef]
+        pass
+    class RichLog:  # type: ignore[no-redef]
+        pass
+    class Static:  # type: ignore[no-redef]
+        pass
+    def work(f: object) -> object: return f  # type: ignore[misc]
 
 from .config import local_version, state_file
 from .notifications import list_all, mark_all_read
@@ -511,10 +538,9 @@ Screen {
 
 
 def run_watch() -> int:
-    try:
-        from textual.app import App  # noqa: F401
-    except ImportError:
-        print("'textual' paketi eksik. Kurmak için: pip install textual")
+    if not _TEXTUAL_OK:
+        print("'textual' paketi eksik. Kurmak için:")
+        print("  pip install 'textual>=0.60.0'")
         return 1
     NasriApp().run()
     return 0

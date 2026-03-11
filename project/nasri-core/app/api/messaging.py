@@ -100,7 +100,7 @@ async def telegram_webhook(
     if not text or not chat_id or not external_user_id:
         return {"ok": True}
 
-    command_reply = await format_command_reply("telegram", external_user_id, text)
+    command_reply = await format_command_reply("telegram", external_user_id, text, chat_id=chat_id)
     if command_reply is not None:
         await send_telegram_message(chat_id, command_reply)
         return {"ok": True}
