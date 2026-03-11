@@ -11,7 +11,8 @@ def _help_text() -> str:
 /chat     Ollama ile sohbet baslat
 start     Servisi foreground baslat
 update    Guncelleme kontrol et ve uygula
-watch     Canli bildirim panelini ac
+watch         Canli bildirim panelini ac
+setup-device  Cihaz anahtari ve sifresiz dogrulama kur
 telegram-setup Telegram bot ayarlarini yapilandir
 """
 
@@ -111,6 +112,12 @@ def cmd_uninstall_service() -> int:
     return 0
 
 
+def cmd_setup_device() -> int:
+    from .device_auth import run_device_setup
+
+    return run_device_setup()
+
+
 def cmd_watch() -> int:
     from .tui import run_watch
 
@@ -151,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_uninstall_service()
     if command == "watch":
         return cmd_watch()
+    if command in {"setupdevice", "setup-device", "device"}:
+        return cmd_setup_device()
     if command in {"telegramsetup", "telegram"}:
         return cmd_telegram_setup()
 

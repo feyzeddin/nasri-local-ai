@@ -208,6 +208,14 @@ def _install_linux_service() -> None:
     )
     data_path = Path(os.getenv("NASRI_DATA_DIR") or str(install_dir() / ".nasri-data"))
     data_path.mkdir(parents=True, exist_ok=True)
+
+    # Şifresiz servis yönetimi için sudoers kuralı ekle
+    from .device_auth import setup_sudoers
+    ok, detail = setup_sudoers(service_user)
+    if ok:
+        print(f"Sudoers kuralı eklendi: {detail}")
+    else:
+        print(f"Sudoers yazılamadı ({detail}) — servis yönetiminde şifre gerekebilir")
     service_text = f"""[Unit]
 Description=Nasri Background Service
 After=network-online.target
