@@ -521,6 +521,44 @@ for rc in "$ACTUAL_HOME/.bashrc" "$ACTUAL_HOME/.zshrc"; do
     fi
 done
 
+# ----------------------------------------------------------------
+# Ollama systemd servisi — yoksa oluştur
+# ----------------------------------------------------------------
+if command_exists systemctl && [ "$OS" = "Linux" ] && command_exists ollama; then
+    if ! systemctl is-enabled ollama.service > /dev/null 2>&1; then
+        info "Ollama systemd servisi kuruluyor..."
+        OLLAMA_BIN=$(command -v ollama)
+        cat > /etc/systemd/system/ollama.service << OLLAMAEOF
+[Unit]
+Description=Ollama Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=${ACTUAL_USER}
+ExecStart=${OLLAMA_BIN} serve
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+OLLAMAEOF
+        systemctl daemon-reload
+        systemctl enable ollama.service
+        systemctl start ollama.service
+        sleep 3
+        if systemctl is-active --quiet ollama.service; then
+            ok "Ollama servisi kuruldu ve çalışıyor"
+        else
+            warn "Ollama servisi başlatılamadı"
+        fi
+    else
+        systemctl start ollama.service 2>/dev/null || true
+        ok "Ollama servisi zaten kurulu"
+    fi
+fi
+
 # Systemd servisi kur
 if command_exists systemctl && [ "$OS" = "Linux" ]; then
     NASRI_INSTALL_DIR="$NASRI_SRC" NASRI_DATA_DIR="$NASRI_DATA_DIR" \
