@@ -106,6 +106,51 @@ while true; do
 done
 
 # =============================================================================
+# ÖNCEKİ KURULUMU TEMİZLE
+# =============================================================================
+step "0/7 — Önceki kurulum temizleniyor"
+
+# Servisi durdur ve kaldır
+if command -v systemctl &>/dev/null; then
+    if systemctl is-active --quiet nasri.service 2>/dev/null; then
+        log "Çalışan nasri servisi durduruluyor..."
+        systemctl stop nasri.service 2>/dev/null || true
+    fi
+    systemctl disable nasri.service 2>/dev/null || true
+    if [ -f /etc/systemd/system/nasri.service ]; then
+        rm -f /etc/systemd/system/nasri.service
+        systemctl daemon-reload 2>/dev/null || true
+        ok "Systemd servisi kaldırıldı"
+    fi
+fi
+
+# Tüm kullanıcıların .nasri dizinlerini temizle
+for user_home in /root /home/*; do
+    if [ -d "$user_home/.nasri" ]; then
+        log "Temizleniyor: $user_home/.nasri"
+        rm -rf "$user_home/.nasri"
+        ok "$user_home/.nasri silindi"
+    fi
+done
+
+# nasri binary'lerini temizle
+for bin_path in /usr/local/bin/nasri /root/.local/bin/nasri; do
+    if [ -f "$bin_path" ]; then
+        rm -f "$bin_path"
+        ok "Silindi: $bin_path"
+    fi
+done
+for user_home in /home/*; do
+    bin="$user_home/.local/bin/nasri"
+    if [ -f "$bin" ]; then
+        rm -f "$bin"
+        ok "Silindi: $bin"
+    fi
+done
+
+ok "Temizlik tamamlandı"
+
+# =============================================================================
 # YARDIMCI FONKSİYONLAR
 # =============================================================================
 
