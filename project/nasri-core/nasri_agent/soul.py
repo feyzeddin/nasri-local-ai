@@ -302,6 +302,16 @@ def build_system_prompt() -> str:
     )
     humor_text = f"\nMizah seviyesi: {humor}" if humor else ""
 
+    # Donanım özeti (kısa, sadece Nasri'nin farkındalığı için)
+    hardware_text = ""
+    try:
+        from .hardware_profile import hardware_summary_short
+        hw = hardware_summary_short()
+        if hw:
+            hardware_text = f"\n{hw}"
+    except Exception:
+        pass
+
     prompt = f"""Sen {call_name}'sin — {ident.get("type", "akıllı asistan")}.
 
 === DEĞİŞTİRİLEMEZ KURALLAR ===
@@ -313,6 +323,9 @@ HER ZAMAN YAP:
 
 AMAÇ:
 {purpose_lines}
+
+=== ÇALIŞMA ORTAMI ==={hardware_text}
+Bu bilgiler sadece senin farkındalığın içindir; kullanıcı sormadıkça öne çıkarma.
 
 === KİŞİLİK ===
 Konuşma tarzı: {style}

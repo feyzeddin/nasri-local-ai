@@ -17,6 +17,10 @@ telegram-setup Telegram bot ayarlarini yapilandir
 soul          Nasri'nin ruh durumunu goster
 soul set <key> <value>  Kullanici tercihini guncelle
 soul prefs    Tum kullanici tercihlerini listele
+hardware      Donanim profilini goster
+hardware scan Yeniden tarama yap
+hardware changes  Son donanim degisikliklerini goster
+hardware json Tam JSON profili yazdir
 """
 
 
@@ -139,6 +143,104 @@ def cmd_watch() -> int:
     return run_watch()
 
 
+def cmd_hardware(argv: list[str] | None = None) -> int:
+    """Donanım profilini gösterir veya yeniden tarar."""
+    import json as _json
+    from .hardware_profile import scan_hardware, get_hardware_profile, get_hardware_changes
+
+    rescan = argv and argv[0] in ("scan", "rescan", "refresh")
+    changes_only = argv and argv[0] == "changes"
+    full_json = argv and argv[0] in ("json", "full")
+
+    if changes_only:
+        changes = get_hardware_changes()
+        if not changes:
+            print("Kayıtlı donanım değişikliği yok.")
+        else:
+            for c in changes[:20]:
+                print(f"  [{c['detected_at'][:19]}] {c['field']}: {c['old']} → {c['new']}")
+        return 0
+
+    if rescan:
+        print("Donanım taraması yapılıyor...")
+        p = scan_hardware(notify_changes=True)
+    else:
+        p = get_hardware_profile()
+
+    if full_json:
+        print(_json.dumps(p, ensure_ascii=False, indent=2))
+        return 0
+
+    # Okunabilir özet
+    print(f"\nNasrî — Donanım Profili  [{p.get('scanned_at','?')[:19]}]")
+    print(f"Platform : {p.get('platform','?')}")
+    os_i = p.get("os", {})
+    print(f"OS       : {os_i.get('distro') or os_i.get('release','?')}")
+    if os_i.get("kernel"):
+        print(f"Kernel   : {os_i['kernel']}")
+
+    cpu = p.get("cpu", {})
+    if cpu:
+        print(f"\nCPU      : {cpu.get('model','?')}")
+        print(f"  Çekirdek (fiziksel/mantıksal): {cpu.get('cores_physical','?')}/{cpu.get('cores_logical','?')}")
+        if cpu.get("freq_max_mhz"):
+            print(f"  Max frekans: {cpu['freq_max_mhz']} MHz")
+        if cpu.get("features"):
+            print(f"  Özellikler : {', '.join(cpu['features'])}")
+
+    mem = p.get("memory", {})
+    if mem:
+        print(f"\nRAM      : {mem.get('total_gb','?')} GB")
+        if mem.get("swap_total_gb"):
+            print(f"  Swap   : {mem['swap_total_gb']} GB")
+        if mem.get("dimms"):
+            for d in mem["dimms"]:
+                print(f"  DIMM   : {d}")
+
+    gpus = p.get("gpu", [])
+    if gpus:
+        print(f"\nGPU({len(gpus)})   :")
+        for g in gpus:
+            vram = f" | {g['vram_mb']//1024} GB VRAM" if g.get("vram_mb") else ""
+            drv = f" | Sürücü: {g['driver']}" if g.get("driver") else ""
+            print(f"  {g.get('name','?')}{vram}{drv}")
+
+    disks = p.get("storage", [])
+    if disks:
+        print(f"\nDisk({len(disks)})  :")
+        for d in disks:
+            model = f" [{d['model']}]" if d.get("model") else ""
+            dtype = f" {d.get('type','')}" if d.get("type") else ""
+            total = f" {d.get('total_gb','?')} GB" if d.get("total_gb") else f" {d.get('size','')}"
+            free = f" (boş: {d.get('free_gb','?')} GB)" if d.get("free_gb") else ""
+            mp = f" → {d['mountpoint']}" if d.get("mountpoint") else ""
+            print(f"  {d.get('device','?')}{model}{dtype}{total}{free}{mp}")
+
+    nets = p.get("network", [])
+    if nets:
+        print(f"\nAğ({len(nets)})    :")
+        for n in nets:
+            speed = f" {n['speed_mbps']} Mbps" if n.get("speed_mbps") else ""
+            ip = f" {n['ipv4']}" if n.get("ipv4") else ""
+            ntype = f" [{n.get('type','')}]" if n.get("type") else ""
+            status = "↑" if n.get("is_up") else "↓"
+            print(f"  {status} {n['name']}{ntype}{speed}{ip}")
+
+    usb = p.get("usb", [])
+    if usb:
+        print(f"\nUSB({len(usb)})   :")
+        for u in usb[:8]:
+            print(f"  {u}")
+
+    changes = get_hardware_changes()
+    if changes:
+        print(f"\nSon değişiklikler ({len(changes)} kayıt, son 3):")
+        for c in changes[:3]:
+            print(f"  [{c['detected_at'][:19]}] {c['field']}: {c['old']} → {c['new']}")
+
+    return 0
+
+
 def cmd_soul(argv: list[str] | None = None) -> int:
     """Nasri'nin ruh durumunu gösterir; kullanıcı tercihlerini günceller."""
     from .soul import soul_summary, update_user_pref, get_user_prefs
@@ -216,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_telegram_setup()
     if command == "soul":
         return cmd_soul(args.rest or [])
+    if command == "hardware":
+        return cmd_hardware(args.rest or [])
 
     print(f"Bilinmeyen komut: {args.command}")
     print(_help_text())

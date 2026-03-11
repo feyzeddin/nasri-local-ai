@@ -110,6 +110,21 @@ def _check_soul_integrity() -> None:
         print(f"[nasri] Ruh çekirdeği kontrolü başarısız: {exc}")
 
 
+def _run_hardware_scan(first_run: bool = False) -> None:
+    """Donanım taraması yapar. İlk çalıştırmada her zaman, sonrasında günde bir."""
+    try:
+        from .hardware_profile import scan_hardware, should_rescan
+        if first_run or should_rescan(interval_hours=24):
+            print("[nasri] Donanım taraması yapılıyor...")
+            profile = scan_hardware(notify_changes=not first_run)
+            cpu_model = profile.get("cpu", {}).get("model", "?")
+            ram = profile.get("memory", {}).get("total_gb", "?")
+            gpu_count = len(profile.get("gpu", []))
+            print(f"[nasri] Donanım: CPU={cpu_model} RAM={ram}GB GPU={gpu_count} adet")
+    except Exception as exc:
+        print(f"[nasri] Donanım taraması başarısız: {exc}")
+
+
 def _run_preflight_with_heal() -> bool:
     """Ön kontrolleri çalıştırır, hataları otomatik onarmayı dener."""
     print("[nasri] Ön kontroller çalıştırılıyor...")
@@ -140,6 +155,7 @@ def run_service() -> None:
         return
 
     _check_soul_integrity()
+    _run_hardware_scan(first_run=True)
 
     if not _run_preflight_with_heal():
         _release_lock()
@@ -221,6 +237,9 @@ def run_service() -> None:
                     _stop_api_server(_api_proc)
                     _release_lock()
                     os.execv(sys.executable, [sys.executable] + sys.argv)
+            # Günlük donanım taraması
+            _run_hardware_scan(first_run=False)
+
             # Günlük model araştırma döngüsü
             last_model_check = current.get("last_model_check")
             try:
