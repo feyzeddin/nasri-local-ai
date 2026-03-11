@@ -19,6 +19,7 @@ from .config import (
 )
 from .healer import heal_results
 from .preflight import run_preflight
+from .model_manager import run_model_research_cycle, should_research_models as should_research_models_fn
 from .notifications import push as _notify
 from .updater import maybe_update, should_check_update
 
@@ -162,6 +163,18 @@ def run_service() -> None:
                 _api_proc = _start_api_server()
                 _write_state(api_pid=str(_api_proc.pid))
 
+            # Model değişikliği veya başka bir nedenden yeniden başlatma isteği
+            from .config import data_dir as _data_dir
+            _restart_flag = _data_dir() / ".restart_flag"
+            if _restart_flag.exists():
+                try:
+                    _restart_flag.unlink()
+                except Exception:
+                    pass
+                _stop_api_server(_api_proc)
+                _release_lock()
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+
             current: dict = {}
             try:
                 current = json.loads(state_file().read_text(encoding="utf-8"))
@@ -193,6 +206,20 @@ def run_service() -> None:
                     _stop_api_server(_api_proc)
                     _release_lock()
                     os.execv(sys.executable, [sys.executable] + sys.argv)
+            # Günlük model araştırma döngüsü
+            last_model_check = current.get("last_model_check")
+            try:
+                model_interval = int(os.getenv("NASRI_MODEL_CHECK_INTERVAL_HOURS", "24"))
+            except ValueError:
+                model_interval = 24
+            if should_research_models_fn(last_model_check, interval_hours=model_interval):
+                _write_state(last_model_check=dt.datetime.now(dt.timezone.utc).isoformat())
+                try:
+                    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+                    run_model_research_cycle(ollama_url=ollama_url)
+                except Exception:
+                    pass
+
             time.sleep(30)
 
         _write_state(status="stopped")
