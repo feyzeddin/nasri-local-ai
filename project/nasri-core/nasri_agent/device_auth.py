@@ -121,8 +121,7 @@ def sign_data(data: bytes) -> Optional[str]:
 # Sudoers
 # ------------------------------------------------------------------ #
 
-def setup_sudoers(user: str) -> tuple[bool, str]:
-    """Nasrî servis komutları için şifresiz sudo kuralı yazar (root gerekli)."""
+def _sudoers_content(user: str) -> str:
     cmds = ", ".join([
         "/usr/bin/systemctl start nasri.service",
         "/usr/bin/systemctl stop nasri.service",
@@ -133,16 +132,52 @@ def setup_sudoers(user: str) -> tuple[bool, str]:
         "/bin/systemctl restart nasri.service",
         "/bin/systemctl status nasri.service",
     ])
-    content = f"# Nasri — sifresiz servis yonetimi\n{user} ALL=(ALL) NOPASSWD: {cmds}\n"
+    return f"# Nasri — sifresiz servis yonetimi\n{user} ALL=(ALL) NOPASSWD: {cmds}\n"
+
+
+def setup_sudoers(user: str) -> tuple[bool, str]:
+    """Nasrî servis komutları için şifresiz sudo kuralı yazar.
+
+    Önce doğrudan yazar (root ise), başarısız olursa 'sudo tee' ile dener.
+    """
+    import subprocess as _sp
+    content = _sudoers_content(user)
     target = Path("/etc/sudoers.d/nasri")
+
+    # Deneme 1: doğrudan yaz (root çalışıyorsa)
     try:
         target.write_text(content, encoding="utf-8")
         target.chmod(0o440)
         return True, str(target)
     except PermissionError:
-        return False, "root yetkisi gerekli"
+        pass
     except Exception as exc:
         return False, str(exc)
+
+    # Deneme 2: sudo tee (kullanıcı NOPASSWD sudo'ya sahipse veya oturumda sudo önbelleği varsa)
+    try:
+        r = _sp.run(
+            ["sudo", "tee", str(target)],
+            input=content,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if r.returncode == 0:
+            _sp.run(["sudo", "chmod", "0440", str(target)], timeout=10, capture_output=True)
+            # visudo ile doğrula
+            v = _sp.run(
+                ["sudo", "visudo", "-c", "-f", str(target)],
+                capture_output=True, timeout=10,
+            )
+            if v.returncode != 0:
+                _sp.run(["sudo", "rm", "-f", str(target)], timeout=10)
+                return False, "visudo doğrulaması başarısız"
+            return True, str(target)
+    except Exception as exc:
+        return False, str(exc)
+
+    return False, "root yetkisi veya sudo gerekli — 'sudo nasri setup-device' çalıştırın"
 
 
 # ------------------------------------------------------------------ #

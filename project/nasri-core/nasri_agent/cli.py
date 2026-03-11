@@ -12,7 +12,8 @@ def _help_text() -> str:
 start     Servisi foreground baslat
 update    Guncelleme kontrol et ve uygula
 watch         Canli bildirim panelini ac
-setup-device  Cihaz anahtari ve sifresiz dogrulama kur
+setup-device          Cihaz anahtari ve 2FA dogrulama kur
+setup-device sudoers  Sadece sifresiz sudo kuralini yaz (2FA gerekmez)
 telegram-setup Telegram bot ayarlarini yapilandir
 soul          Nasri'nin ruh durumunu goster
 soul set <key> <value>  Kullanici tercihini guncelle
@@ -73,29 +74,28 @@ def cmd_chat() -> int:
 def cmd_update() -> int:
     import os
     import shutil
-    import subprocess
+    import json
 
     from .updater import local_version, maybe_update
+    from .config import data_dir, state_file
 
     print(f"Mevcut surum: {local_version()}")
     print("Guncelleme kontrol ediliyor...")
     updated = maybe_update()
     if updated:
         print(f"Guncelleme tamamlandi. Yeni surum: {local_version()}")
-        if shutil.which("systemctl"):
-            print("Servis yeniden baslatiliyor...")
-            r = subprocess.run(
-                ["sudo", "systemctl", "restart", "nasri.service"],
-                capture_output=True, text=True,
-            )
-            if r.returncode == 0:
-                print("Servis yeniden baslatildi.")
-            else:
-                print(f"Servis baslatma basarisiz: {r.stderr.strip()}")
-                print("Manuel olarak calistirin: sudo systemctl restart nasri.service")
-        # Güncelleme sonrası yeni kodu yüklemek için süreci yeniden başlat
-        # ve watch panelini aç (os.execv mevcut bellekteki eski kodu değil
-        # diskteki yeni kodu çalıştırır)
+
+        # Servis döngüsüne yeniden başlatma sinyali gönder.
+        # .restart_flag dosyasını servisteki while döngüsü izler ve
+        # os.execv ile kendini yeniden başlatır — şifre gerekmez.
+        try:
+            flag = data_dir() / ".restart_flag"
+            flag.touch()
+            print("Servis yeniden baslatma sinyali gonderildi (sifre gerekmez).")
+        except Exception as e:
+            print(f"Restart flag yazılamadı: {e}")
+
+        # Bu process'i de yeni kodu yükleyerek yeniden başlat (watch aç)
         nasri_bin = shutil.which("nasri")
         if nasri_bin:
             os.execv(nasri_bin, [nasri_bin, "watch"])
@@ -103,8 +103,6 @@ def cmd_update() -> int:
             import sys
             os.execv(sys.executable, [sys.executable, "-m", "nasri_agent", "watch"])
     else:
-        from .config import state_file
-        import json
         try:
             state = json.loads(state_file().read_text(encoding="utf-8"))
             result = state.get("last_update_result", "n/a")
@@ -131,8 +129,32 @@ def cmd_uninstall_service() -> int:
     return 0
 
 
-def cmd_setup_device() -> int:
-    from .device_auth import run_device_setup
+def cmd_setup_device(argv: list[str] | None = None) -> int:
+    from .device_auth import run_device_setup, setup_sudoers, _sudoers_content
+    import os
+    from pathlib import Path
+
+    # 'nasri setup-device sudoers' — sadece sudoers kuralını yaz (2FA gerekmez)
+    if argv and argv[0] == "sudoers":
+        user = (
+            os.environ.get("SUDO_USER")
+            or os.environ.get("USER")
+            or "root"
+        )
+        print(f"Şifresiz servis yönetimi kuruluyor (kullanıcı: {user})...")
+        ok, detail = setup_sudoers(user)
+        if ok:
+            print(f"  ✓ Sudoers kuralı yazıldı: {detail}")
+            print("  Artık 'systemctl restart nasri.service' için şifre gerekmez.")
+        else:
+            print(f"  ✗ Başarısız: {detail}")
+            print()
+            print("  Manuel olarak şunu çalıştırın:")
+            print(f"    sudo bash -c 'cat > /etc/sudoers.d/nasri << EOF")
+            print(_sudoers_content(user).rstrip())
+            print("EOF'")
+            print("    sudo chmod 0440 /etc/sudoers.d/nasri")
+        return 0 if ok else 1
 
     return run_device_setup()
 
@@ -313,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     if command == "watch":
         return cmd_watch()
     if command in {"setupdevice", "setup-device", "device"}:
-        return cmd_setup_device()
+        return cmd_setup_device(args.rest or [])
     if command in {"telegramsetup", "telegram"}:
         return cmd_telegram_setup()
     if command == "soul":

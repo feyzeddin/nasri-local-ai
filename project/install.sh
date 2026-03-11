@@ -527,6 +527,31 @@ if command_exists systemctl && [ "$OS" = "Linux" ]; then
     NASRI_API_PORT="$API_PORT" NASRI_SERVICE_USER="$ACTUAL_USER" \
     "$NASRI_VENV/bin/nasri" install-service 2>/dev/null && ok "Systemd servisi kuruldu"
 
+    # ----------------------------------------------------------------
+    # Şifresiz servis yönetimi — sudoers kuralı yaz
+    # Güncelleme akışı os.execv + .restart_flag kullanır (sudo yok),
+    # ama yönetim komutları için yine de kurulur.
+    # ----------------------------------------------------------------
+    SUDOERS_FILE="/etc/sudoers.d/nasri"
+    SUDOERS_CONTENT="# Nasri — sifresiz servis yonetimi
+${ACTUAL_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nasri.service, /usr/bin/systemctl stop nasri.service, /usr/bin/systemctl restart nasri.service, /usr/bin/systemctl status nasri.service, /bin/systemctl start nasri.service, /bin/systemctl stop nasri.service, /bin/systemctl restart nasri.service, /bin/systemctl status nasri.service"
+
+    printf '%s\n' "$SUDOERS_CONTENT" > "$SUDOERS_FILE" 2>/dev/null || \
+        printf '%s\n' "$SUDOERS_CONTENT" | sudo tee "$SUDOERS_FILE" > /dev/null 2>&1 || true
+
+    if [ -f "$SUDOERS_FILE" ]; then
+        chmod 0440 "$SUDOERS_FILE" 2>/dev/null || sudo chmod 0440 "$SUDOERS_FILE" 2>/dev/null || true
+        # visudo ile sözdizimi doğrula; hatalıysa sil
+        if visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
+            ok "Şifresiz servis yönetimi kuruldu ($SUDOERS_FILE)"
+        else
+            warn "Sudoers sözdizimi hatası — kural silindi. 'sudo nasri setup-device' ile tekrar kurun."
+            rm -f "$SUDOERS_FILE"
+        fi
+    else
+        warn "Sudoers dosyası yazılamadı. Servis işlemleri .restart_flag üzerinden şifresiz çalışır."
+    fi
+
     systemctl start nasri.service 2>/dev/null || true
     sleep 3
 
