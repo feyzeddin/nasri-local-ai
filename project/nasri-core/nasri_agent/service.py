@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import os
 import platform
+import shutil
 import signal
 import subprocess
 import sys
@@ -110,6 +111,40 @@ def _check_soul_integrity() -> None:
         print(f"[nasri] Ruh çekirdeği kontrolü başarısız: {exc}")
 
 
+def _ensure_ollama_running() -> None:
+    """Ollama erişilebilir değilse arka planda başlatır."""
+    import urllib.request as _req
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    try:
+        with _req.urlopen(f"{ollama_url}/api/tags", timeout=3):
+            print("[nasri] Ollama çalışıyor.")
+            return
+    except Exception:
+        pass
+
+    if not shutil.which("ollama"):
+        print("[nasri] UYARI: 'ollama' komutu bulunamadı. Lütfen Ollama'yı kurun.")
+        return
+
+    print("[nasri] Ollama çalışmıyor, başlatılıyor...")
+    subprocess.Popen(
+        ["ollama", "serve"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    # Başlaması için bekle
+    import time as _time
+    for _ in range(10):
+        _time.sleep(1)
+        try:
+            with _req.urlopen(f"{ollama_url}/api/tags", timeout=2):
+                print("[nasri] Ollama başlatıldı.")
+                return
+        except Exception:
+            pass
+    print("[nasri] UYARI: Ollama 10 saniyede başlamadı, devam ediliyor.")
+
+
 def _run_hardware_scan(first_run: bool = False) -> None:
     """Donanım taraması yapar. İlk çalıştırmada her zaman, sonrasında günde bir."""
     try:
@@ -155,6 +190,7 @@ def run_service() -> None:
         return
 
     _check_soul_integrity()
+    _ensure_ollama_running()
 
     # Saat doğruluğunu kontrol et ve gerekirse NTP senkronu yap
     try:

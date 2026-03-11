@@ -54,17 +54,82 @@ _BOTH_PATTERNS = _re.compile(
     r"\b(tarih.*saat|saat.*tarih|şu anki|şu an ki|now|şimdi)\b",
     _re.IGNORECASE,
 )
+_WEATHER_PATTERNS = _re.compile(
+    r"\b(hava|hava durumu|hava nasıl|sıcaklık|derece|yağmur|kar|fırtına|"
+    r"weather|temperature|forecast|nem|rüzgar)\b",
+    _re.IGNORECASE,
+)
+
+
+def _extract_city(message: str) -> str:
+    """Mesajdan şehir adını çıkarır. Bulamazsa 'Turkey' döner."""
+    # "Ankara'da", "İstanbul'da", "Bursa'ta" gibi konum ekleri
+    m = _re.search(
+        r"\b([A-ZÇĞİÖŞÜ][a-zçğışöşü]{1,}(?:\s[A-ZÇĞİÖŞÜ][a-zçğışöşü]+)?)"
+        r"['\u2019]?(da|de|ta|te|nda|nde|nta|nte)\b",
+        message,
+    )
+    if m:
+        return m.group(1)
+    # "İstanbul hava" — hava kelimesinden önceki büyük harfli kelime
+    m = _re.search(
+        r"\b([A-ZÇĞİÖŞÜ][a-zçğışöşü]{1,}(?:\s[A-ZÇĞİÖŞÜ][a-zçğışöşü]+)?)"
+        r"\s+(?:hava|sıcaklık|weather)",
+        message,
+    )
+    if m:
+        return m.group(1)
+    return "Turkey"
+
+
+def _fetch_weather(city: str) -> str:
+    """wttr.in'den hava durumu çeker (ücretsiz, API key yok)."""
+    import urllib.request, urllib.parse, json as _json
+    try:
+        encoded = urllib.parse.quote(city)
+        url = f"http://wttr.in/{encoded}?format=j1&lang=tr"
+        req = urllib.request.Request(url, headers={"User-Agent": "Nasri/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = _json.loads(r.read().decode())
+
+        cur = data["current_condition"][0]
+        area = data["nearest_area"][0]
+
+        city_name = (
+            area.get("areaName", [{}])[0].get("value", city)
+            or city
+        )
+        temp_c    = cur.get("temp_C", "?")
+        feels_c   = cur.get("FeelsLikeC", "?")
+        humidity  = cur.get("humidity", "?")
+        wind_kmph = cur.get("windspeedKmph", "?")
+        desc_list = cur.get("lang_tr") or cur.get("weatherDesc", [{}])
+        desc      = desc_list[0].get("value", "?") if desc_list else "?"
+
+        # Bugünkü min/max
+        today = data.get("weather", [{}])[0]
+        min_c = today.get("mintempC", "?")
+        max_c = today.get("maxtempC", "?")
+
+        return (
+            f"{city_name} hava durumu: {desc}, {temp_c}°C "
+            f"(hissedilen {feels_c}°C) | "
+            f"Min: {min_c}°C  Maks: {max_c}°C | "
+            f"Nem: %{humidity}  Rüzgar: {wind_kmph} km/s"
+        )
+    except Exception as exc:
+        return f"Hava durumu alınamadı: {exc}"
 
 
 def _try_local_answer(message: str) -> str | None:
     """
-    Tarih/saat gibi sistem sorularını Ollama'ya iletmeden yanıtlar.
+    Tarih/saat/hava durumu gibi sorguları Ollama'ya iletmeden yanıtlar.
     None dönerse normal API akışına devam edilir.
     """
+    msg = message.strip()
     try:
         from .time_sync import format_datetime_tr, get_current_datetime
         now = get_current_datetime()
-        msg = message.strip()
 
         if _BOTH_PATTERNS.search(msg) or (
             _DATE_PATTERNS.search(msg) and _TIME_PATTERNS.search(msg)
@@ -83,6 +148,11 @@ def _try_local_answer(message: str) -> str | None:
 
     except Exception:
         pass
+
+    if _WEATHER_PATTERNS.search(msg):
+        city = _extract_city(msg)
+        return _fetch_weather(city)
+
     return None
 
 _KIND_COLOR = {
@@ -277,20 +347,32 @@ Screen {
         self.query_one("#chat_log", RichLog).write(
             f"[bold white]Sen:[/bold white] {message}"
         )
-        # Tarih/saat/sistem soruları → anında yerel yanıt, API'ye gitme
-        local_reply = _try_local_answer(message)
-        if local_reply is not None:
-            self.query_one("#chat_log", RichLog).write(
-                f"[bold cyan]Nasrî:[/bold cyan] {local_reply}"
-            )
-            self.query_one("#chat_input", Input).focus()
-            return
+        # Tarih/saat → anında yerel yanıt (blocking I/O yok, senkron olabilir)
+        if not _WEATHER_PATTERNS.search(message):
+            local_reply = _try_local_answer(message)
+            if local_reply is not None:
+                self.query_one("#chat_log", RichLog).write(
+                    f"[bold cyan]Nasrî:[/bold cyan] {local_reply}"
+                )
+                self.query_one("#chat_input", Input).focus()
+                return
+        # Hava durumu veya LLM soruları → thread'de çalıştır
         self._stream_message(message)
 
     @work(thread=True)
     def _stream_message(self, message: str) -> None:
-        """SSE stream ile Ollama'dan yanıt alır, token token gösterir."""
+        """SSE stream ile Ollama'dan yanıt alır; hava durumu sorularını yerel çözer."""
         self.call_from_thread(self._set_responding, True)
+
+        # Hava durumu → wttr.in'den çek, LLM'ye gitme
+        if _WEATHER_PATTERNS.search(message):
+            city = _extract_city(message)
+            self.call_from_thread(
+                self._update_streaming_reply, f"{city} için hava durumu alınıyor..."
+            )
+            result = _fetch_weather(city)
+            self.call_from_thread(self._finish_reply, result)
+            return
 
         state = _load_state()
         port = state.get("api_port", "8000")
