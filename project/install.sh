@@ -501,16 +501,23 @@ fi
 
 # Interaktif terminal açıldığında nasri watch otomatik başlasın
 AUTOSTART_MARKER="# nasri-autostart"
-for rc in "$ACTUAL_HOME/.bashrc" "$ACTUAL_HOME/.zshrc"; do
-    if [ -f "$rc" ] && ! grep -q "$AUTOSTART_MARKER" "$rc"; then
-        cat >> "$rc" <<RC_BLOCK
-
+NASRI_WATCH_BLOCK="
 $AUTOSTART_MARKER
-if [[ \$- == *i* ]] && [[ -z "\${NASRI_NO_WATCH:-}" ]] && [[ -z "\${TMUX:-}\${STY:-}" || "\${NASRI_WATCH_IN_TMUX:-0}" == "1" ]]; then
+if [[ \$- == *i* ]] && [[ -z \"\${NASRI_NO_WATCH:-}\" ]]; then
+    _nasri_flag=\"\${NASRI_DATA_DIR:-\$HOME/.nasri/data}/.open_watch_flag\"
+    [ -f \"\$_nasri_flag\" ] && rm -f \"\$_nasri_flag\"
     nasri watch
-fi
-RC_BLOCK
-        ok "Otomatik başlatma eklendi: $rc"
+fi"
+
+for rc in "$ACTUAL_HOME/.bashrc" "$ACTUAL_HOME/.zshrc"; do
+    if [ -f "$rc" ]; then
+        # Varsa eski bloğu sil, yenisini yaz
+        if grep -q "$AUTOSTART_MARKER" "$rc"; then
+            # Eski bloğu temizle
+            sed -i "/$AUTOSTART_MARKER/,/^fi$/d" "$rc" 2>/dev/null || true
+        fi
+        echo "$NASRI_WATCH_BLOCK" >> "$rc"
+        ok "Otomatik başlatma güncellendi: $rc"
     fi
 done
 
@@ -575,3 +582,10 @@ fi
 # Son durum kontrolü
 "$NASRI_BIN_DIR/nasri" /status 2>/dev/null || \
     "$NASRI_VENV/bin/nasri" /status 2>/dev/null || true
+
+# Kurulum tamamlandı — watch panelini aç (interaktif terminal ise)
+if [[ $- == *i* ]] || [ -t 0 ]; then
+    echo -e "\n${CYAN}Nasrî watch paneli açılıyor...${NC}"
+    export PATH="$NASRI_BIN_DIR:$PATH"
+    exec nasri watch
+fi

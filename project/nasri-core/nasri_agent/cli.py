@@ -83,6 +83,8 @@ def cmd_update() -> int:
             else:
                 print(f"Servis baslatma basarisiz: {r.stderr.strip()}")
                 print("Manuel olarak calistirin: sudo systemctl restart nasri.service")
+        from .tui import run_watch
+        return run_watch()
     else:
         from .config import state_file
         import json

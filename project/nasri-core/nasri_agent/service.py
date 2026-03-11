@@ -183,6 +183,12 @@ def run_service() -> None:
                         installed_version=local_version(),
                         status="restarting",
                     )
+                    # Bir sonraki terminal açılışında watch panelini tetikle
+                    from .config import data_dir
+                    try:
+                        (data_dir() / ".open_watch_flag").touch()
+                    except Exception:
+                        pass
                     # Yeni kodu yüklemek için süreci yeniden başlat
                     _stop_api_server(_api_proc)
                     _release_lock()
