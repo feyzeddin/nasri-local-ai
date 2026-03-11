@@ -35,6 +35,56 @@ from .notifications import list_all, mark_all_read
 
 _SESSION_ID = str(uuid.uuid4())
 
+# ------------------------------------------------------------------ #
+# Yerel yanıtlayıcı — API'ye gitmeye gerek olmayan sorular
+# ------------------------------------------------------------------ #
+
+import re as _re
+
+_DATE_PATTERNS = _re.compile(
+    r"\b(tarih|bugün|bu gün|bugünün tarihi|günün tarihi|hangi gün|"
+    r"today|what.*date|kaçıncı|ayın kaçı)\b",
+    _re.IGNORECASE,
+)
+_TIME_PATTERNS = _re.compile(
+    r"\b(saat|zaman|şu an|şuan|saat kaç|time|what time|saati)\b",
+    _re.IGNORECASE,
+)
+_BOTH_PATTERNS = _re.compile(
+    r"\b(tarih.*saat|saat.*tarih|şu anki|şu an ki|now|şimdi)\b",
+    _re.IGNORECASE,
+)
+
+
+def _try_local_answer(message: str) -> str | None:
+    """
+    Tarih/saat gibi sistem sorularını Ollama'ya iletmeden yanıtlar.
+    None dönerse normal API akışına devam edilir.
+    """
+    try:
+        from .time_sync import format_datetime_tr, get_current_datetime
+        now = get_current_datetime()
+        msg = message.strip()
+
+        if _BOTH_PATTERNS.search(msg) or (
+            _DATE_PATTERNS.search(msg) and _TIME_PATTERNS.search(msg)
+        ):
+            return format_datetime_tr(now)
+
+        if _DATE_PATTERNS.search(msg):
+            from .time_sync import _TR_WEEKDAYS, _TR_MONTHS
+            return (
+                f"{_TR_WEEKDAYS[now.weekday()]}, "
+                f"{now.day} {_TR_MONTHS[now.month]} {now.year}"
+            )
+
+        if _TIME_PATTERNS.search(msg):
+            return now.strftime("%H:%M")
+
+    except Exception:
+        pass
+    return None
+
 _KIND_COLOR = {
     "update": "green",
     "info": "cyan",
@@ -227,6 +277,14 @@ Screen {
         self.query_one("#chat_log", RichLog).write(
             f"[bold white]Sen:[/bold white] {message}"
         )
+        # Tarih/saat/sistem soruları → anında yerel yanıt, API'ye gitme
+        local_reply = _try_local_answer(message)
+        if local_reply is not None:
+            self.query_one("#chat_log", RichLog).write(
+                f"[bold cyan]Nasrî:[/bold cyan] {local_reply}"
+            )
+            self.query_one("#chat_input", Input).focus()
+            return
         self._stream_message(message)
 
     @work(thread=True)
@@ -241,40 +299,56 @@ Screen {
         chunks: list[str] = []
         error: str | None = None
 
-        try:
-            timeout = httpx.Timeout(connect=5.0, read=45.0, write=5.0, pool=5.0)
-            with httpx.Client(timeout=timeout) as client:
-                with client.stream(
-                    "POST",
-                    url,
-                    json={"message": message, "session_id": _SESSION_ID},
-                ) as resp:
-                    if resp.status_code != 200:
-                        error = f"Sunucu hatası ({resp.status_code}). Servis çalışıyor mu?"
-                    else:
-                        # SSE satırlarını oku, token token göster
-                        for line in resp.iter_lines():
-                            if not line.startswith("data: "):
-                                continue
-                            chunk = line[6:]
-                            if chunk == "[DONE]":
-                                break
-                            if chunk.startswith("[ERROR]"):
-                                error = chunk[7:].strip() or "Bilinmeyen hata"
-                                break
-                            if chunk:
-                                chunks.append(chunk)
-                                # Her ~5 tokende bir UI'ı güncelle (çok sık çağrı engellenir)
-                                if len(chunks) % 5 == 0:
-                                    self.call_from_thread(
-                                        self._update_streaming_reply, "".join(chunks)
-                                    )
-        except httpx.ConnectError:
-            error = "API'ye bağlanılamadı. Nasrî servisi çalışıyor mu? (nasri start)"
-        except httpx.ReadTimeout:
-            error = "Zaman aşımı (45s). Ollama çok yavaş ya da yanıt vermiyor."
-        except Exception as exc:
-            error = f"Bağlantı hatası: {exc}"
+        # ConnectError durumunda kısa süreli yeniden deneme
+        for attempt in range(3):
+            chunks = []
+            error = None
+            try:
+                timeout = httpx.Timeout(connect=5.0, read=45.0, write=5.0, pool=5.0)
+                with httpx.Client(timeout=timeout) as client:
+                    with client.stream(
+                        "POST",
+                        url,
+                        json={"message": message, "session_id": _SESSION_ID},
+                    ) as resp:
+                        if resp.status_code != 200:
+                            error = f"Sunucu hatası ({resp.status_code})."
+                        else:
+                            for line in resp.iter_lines():
+                                if not line.startswith("data: "):
+                                    continue
+                                chunk = line[6:]
+                                if chunk == "[DONE]":
+                                    break
+                                if chunk.startswith("[ERROR]"):
+                                    error = chunk[7:].strip() or "Bilinmeyen hata"
+                                    break
+                                if chunk:
+                                    chunks.append(chunk)
+                                    if len(chunks) % 5 == 0:
+                                        self.call_from_thread(
+                                            self._update_streaming_reply, "".join(chunks)
+                                        )
+                break  # başarılı — döngüden çık
+            except httpx.ConnectError:
+                if attempt < 2:
+                    import time
+                    self.call_from_thread(
+                        self._update_streaming_reply,
+                        f"Servis bekleniyor... ({attempt + 1}/3)"
+                    )
+                    time.sleep(3)
+                    continue
+                error = (
+                    "Nasrî API servisine bağlanılamadı.\n"
+                    "Kontrol: nasri /status  |  Başlat: nasri start"
+                )
+            except httpx.ReadTimeout:
+                error = "Zaman aşımı (45s) — Ollama yanıt vermedi. Model yüklü mü?"
+                break
+            except Exception as exc:
+                error = f"Bağlantı hatası: {exc}"
+                break
 
         reply = error or "".join(chunks) or "(boş yanıt)"
         self.call_from_thread(self._finish_reply, reply, is_error=bool(error))
