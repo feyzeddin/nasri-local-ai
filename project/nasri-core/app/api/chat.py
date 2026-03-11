@@ -64,6 +64,24 @@ async def _get_system_prompt(session_id: str) -> str | None:
     return get_settings().system_prompt
 
 
+def _inject_datetime(system_prompt: str | None) -> str:
+    """
+    Sistem promptuna güncel tarih/saat bağlamını ekler.
+    Her sorgu çağrısında taze hesaplanır — LLM'nin eğitim kesim
+    tarihinden bağımsız olarak doğru zamanı bilmesi sağlanır.
+    """
+    try:
+        from nasri_agent.time_sync import get_context_line
+        context = get_context_line()
+    except Exception:
+        import datetime as _dt
+        context = f"Şu anki tarih ve saat: {_dt.datetime.now().strftime('%d.%m.%Y %H:%M')}"
+
+    base = system_prompt or ""
+    # Bağlamı en üste ekle — LLM önce görür, öncelikli bilgi olur
+    return f"{context}\n\n{base}".strip()
+
+
 async def _build_messages(
     session_id: str,
     new_message: str,
@@ -73,8 +91,9 @@ async def _build_messages(
     system_prompt = await _get_system_prompt(session_id)
 
     messages: list[dict[str, str]] = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
+    # Her sorguda taze tarih/saat enjekte et
+    full_prompt = _inject_datetime(system_prompt)
+    messages.append({"role": "system", "content": full_prompt})
     messages.extend(history)
     messages.append({"role": "user", "content": new_message})
     return messages
@@ -190,7 +209,7 @@ async def chat(body: ChatRequest) -> ChatResponse:
     try:
         routed = await route_chat(
             prompt=prompt,
-            system_prompt=await _get_system_prompt(session_id),
+            system_prompt=_inject_datetime(await _get_system_prompt(session_id)),
         )
         reply = routed.reply
     except ModelRouterError as exc:

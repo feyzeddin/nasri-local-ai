@@ -155,6 +155,14 @@ def run_service() -> None:
         return
 
     _check_soul_integrity()
+
+    # Saat doğruluğunu kontrol et ve gerekirse NTP senkronu yap
+    try:
+        from .time_sync import ensure_time_accurate
+        ensure_time_accurate(verbose=True)
+    except Exception as exc:
+        print(f"[nasri] Zaman kontrolü başarısız: {exc}")
+
     _run_hardware_scan(first_run=True)
 
     if not _run_preflight_with_heal():
