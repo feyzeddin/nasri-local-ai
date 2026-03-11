@@ -248,7 +248,7 @@ def run_service() -> None:
                     pass
                 _stop_api_server(_api_proc)
                 _release_lock()
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+                os.execv(sys.executable, [sys.executable, "-m", "nasri_agent.service"])
 
             current: dict = {}
             try:
@@ -280,7 +280,7 @@ def run_service() -> None:
                     # Yeni kodu yüklemek için süreci yeniden başlat
                     _stop_api_server(_api_proc)
                     _release_lock()
-                    os.execv(sys.executable, [sys.executable] + sys.argv)
+                    os.execv(sys.executable, [sys.executable, "-m", "nasri_agent.service"])
             # Günlük donanım taraması
             _run_hardware_scan(first_run=False)
 
