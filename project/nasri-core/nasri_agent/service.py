@@ -97,6 +97,19 @@ def _stop_api_server(proc: "subprocess.Popen[bytes]") -> None:
         proc.wait()
 
 
+def _check_soul_integrity() -> None:
+    """Ruh çekirdeğini doğrular; bozulmuşsa uyarır ve geri yükler."""
+    try:
+        from .soul import verify_core_integrity, _warn_and_revert_core
+        if not verify_core_integrity():
+            print("[nasri] UYARI: Ruh çekirdeği bütünlük hatası — geri yükleniyor.")
+            _warn_and_revert_core()
+        else:
+            print("[nasri] Ruh çekirdeği bütünlüğü doğrulandı.")
+    except Exception as exc:
+        print(f"[nasri] Ruh çekirdeği kontrolü başarısız: {exc}")
+
+
 def _run_preflight_with_heal() -> bool:
     """Ön kontrolleri çalıştırır, hataları otomatik onarmayı dener."""
     print("[nasri] Ön kontroller çalıştırılıyor...")
@@ -125,6 +138,8 @@ def run_service() -> None:
     if not _take_lock():
         print("Nasri servis zaten calisiyor.")
         return
+
+    _check_soul_integrity()
 
     if not _run_preflight_with_heal():
         _release_lock()

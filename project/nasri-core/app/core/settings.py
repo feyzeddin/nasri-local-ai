@@ -20,13 +20,20 @@ class Settings:
         # Redis'te oturum key'inin geçerlilik süresi (saniye), varsayılan 1 saat
         self.session_ttl_seconds = int(os.getenv("SESSION_TTL_SECONDS", "3600"))
         # Nasri'nin kişiliğini ve görev kapsamını tanımlayan sistem mesajı
-        _default_prompt = (
-            "Sen Nasrî'sin — kullanıcının kişisel, tamamen yerelde çalışan akıllı asistanısın. "
-            "Kullanıcının yazdığı dilde (Türkçe veya İngilizce) kısa, öz ve yardımsever yanıtlar ver. "
-            "Kibar ve samimi ol. Teknik terimleri mümkünse sade dille açıkla. "
-            "Kendini hiçbir zaman başka bir AI modeli (Ollama, LLaMA, vs.) olarak tanıtma."
-        )
-        self.system_prompt: str | None = os.getenv("NASRI_SYSTEM_PROMPT") or _default_prompt
+        # NASRI_SYSTEM_PROMPT env varsa onu kullan, yoksa soul.py'dan üret
+        _env_prompt = os.getenv("NASRI_SYSTEM_PROMPT", "").strip()
+        if _env_prompt:
+            self.system_prompt: str | None = _env_prompt
+        else:
+            try:
+                from nasri_agent.soul import build_system_prompt as _build_soul
+                self.system_prompt = _build_soul()
+            except Exception:
+                self.system_prompt = (
+                    "Sen Nasrî'sin — kullanıcının kişisel, tamamen yerelde çalışan akıllı asistanısın. "
+                    "Kullanıcının yazdığı dilde (Türkçe veya İngilizce) kısa, öz ve yardımsever yanıtlar ver. "
+                    "Kibar ve samimi ol. Kendini hiçbir zaman başka bir AI modeli (Ollama, LLaMA, vs.) olarak tanıtma."
+                )
         # F12.1 — API Key auth (boşsa auth devre dışı)
         self.api_key: str | None = os.getenv("NASRI_API_KEY") or None
         # F12.2 — CORS izin verilen originler (virgülle ayrılmış)

@@ -14,6 +14,9 @@ update    Guncelleme kontrol et ve uygula
 watch         Canli bildirim panelini ac
 setup-device  Cihaz anahtari ve sifresiz dogrulama kur
 telegram-setup Telegram bot ayarlarini yapilandir
+soul          Nasri'nin ruh durumunu goster
+soul set <key> <value>  Kullanici tercihini guncelle
+soul prefs    Tum kullanici tercihlerini listele
 """
 
 
@@ -136,6 +139,42 @@ def cmd_watch() -> int:
     return run_watch()
 
 
+def cmd_soul(argv: list[str] | None = None) -> int:
+    """Nasri'nin ruh durumunu gösterir; kullanıcı tercihlerini günceller."""
+    from .soul import soul_summary, update_user_pref, get_user_prefs
+
+    if argv:
+        # nasri soul set <key> <value>
+        if argv[0] == "set" and len(argv) >= 3:
+            key = argv[1]
+            value = " ".join(argv[2:])
+            update_user_pref(key, value)
+            print(f"Tercih güncellendi: {key} = {value}")
+            return 0
+        # nasri soul prefs
+        if argv[0] == "prefs":
+            import json
+            print(json.dumps(get_user_prefs(), ensure_ascii=False, indent=2))
+            return 0
+
+    summary = soul_summary()
+    integrity = "OK" if summary["core_intact"] else "UYARI: Ruh çekirdeği değiştirilmiş!"
+    print(f"Nasrî Ruh Durumu")
+    print(f"  Kimlik      : {summary['name']}")
+    print(f"  Çekirdek    : v{summary['core_version']} — {integrity}")
+    print(f"  Etkileşim   : {summary['interaction_count']}")
+    print(f"  Tarz        : {summary['communication_style']}")
+    print(f"  Dil         : {summary['language']}")
+    print(f"  Yanıt uzunl.: {summary['response_length']}")
+    if summary["topics"]:
+        print(f"  İlgi alanl. : {', '.join(summary['topics'])}")
+    if summary["expertise_notes"]:
+        print(f"  Uzmanlık    : {', '.join(summary['expertise_notes'][:3])}")
+    if summary["last_evolved_at"]:
+        print(f"  Son evrim   : {summary['last_evolved_at'][:19]}")
+    return 0
+
+
 def cmd_telegram_setup() -> int:
     from .telegram_setup import run_telegram_setup
 
@@ -149,6 +188,7 @@ def _normalize(raw: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("command", nargs="?", default="help")
+    parser.add_argument("rest", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
 
     command = _normalize(args.command)
@@ -174,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_setup_device()
     if command in {"telegramsetup", "telegram"}:
         return cmd_telegram_setup()
+    if command == "soul":
+        return cmd_soul(args.rest or [])
 
     print(f"Bilinmeyen komut: {args.command}")
     print(_help_text())
