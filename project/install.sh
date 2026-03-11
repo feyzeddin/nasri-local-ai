@@ -499,6 +499,21 @@ if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     done
 fi
 
+# Interaktif terminal açıldığında nasri watch otomatik başlasın
+AUTOSTART_MARKER="# nasri-autostart"
+for rc in "$ACTUAL_HOME/.bashrc" "$ACTUAL_HOME/.zshrc"; do
+    if [ -f "$rc" ] && ! grep -q "$AUTOSTART_MARKER" "$rc"; then
+        cat >> "$rc" <<RC_BLOCK
+
+$AUTOSTART_MARKER
+if [[ \$- == *i* ]] && [[ -z "\${NASRI_NO_WATCH:-}" ]] && [[ -z "\${TMUX:-}\${STY:-}" || "\${NASRI_WATCH_IN_TMUX:-0}" == "1" ]]; then
+    nasri watch
+fi
+RC_BLOCK
+        ok "Otomatik başlatma eklendi: $rc"
+    fi
+done
+
 # Systemd servisi kur
 if command_exists systemctl && [ "$OS" = "Linux" ]; then
     NASRI_INSTALL_DIR="$NASRI_SRC" NASRI_DATA_DIR="$NASRI_DATA_DIR" \

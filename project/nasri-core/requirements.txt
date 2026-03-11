@@ -15,3 +15,4 @@ zeroconf==0.136.0
 paramiko==3.5.0
 paho-mqtt==2.1.0
 rich>=13.0.0
+textual>=0.60.0
