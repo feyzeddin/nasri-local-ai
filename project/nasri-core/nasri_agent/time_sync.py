@@ -92,17 +92,45 @@ def refresh_ntp_offset() -> float:
     return _ntp_offset
 
 
+def _get_configured_tz() -> "dt.tzinfo | None":
+    """
+    NASRI_TIMEZONE env değişkeninden zoneinfo nesnesi döner.
+    Ayarlı değilse None döner (sistem saati dilimi kullanılır).
+    """
+    tz_name = os.getenv("NASRI_TIMEZONE", "").strip()
+    if not tz_name:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(tz_name)
+    except Exception:
+        try:
+            import datetime as _dt
+            return _dt.timezone(
+                _dt.timedelta(hours=int(tz_name.replace("UTC", "").replace("+", "") or 0))
+            )
+        except Exception:
+            return None
+
+
 def _get_timezone_name() -> str:
-    """Sistemin zaman dilimini okur."""
+    """Sistemin (veya NASRI_TIMEZONE ile ayarlanan) zaman dilimini döner."""
+    # 1. NASRI_TIMEZONE env'i (en yüksek öncelik)
+    tz_env = os.getenv("NASRI_TIMEZONE", "").strip()
+    if tz_env:
+        return tz_env
+    # 2. /etc/timezone (Linux)
     try:
         tz = Path("/etc/timezone").read_text(encoding="utf-8").strip()
         if tz:
             return tz
     except Exception:
         pass
-    tz_env = os.getenv("TZ", "")
-    if tz_env:
-        return tz_env
+    # 3. TZ env
+    tz_env2 = os.getenv("TZ", "")
+    if tz_env2:
+        return tz_env2
+    # 4. Windows registry
     if platform.system() == "Windows":
         try:
             import winreg  # type: ignore
@@ -118,13 +146,13 @@ def _get_timezone_name() -> str:
 
 def get_current_datetime() -> dt.datetime:
     """
-    NTP offset uygulanmış doğru yerel zamanı döner.
-    Sistem saati yanlış olsa bile NTP'den ölçülen fark ile düzeltilir.
+    NTP offset uygulanmış doğru zamanı döner.
+    NASRI_TIMEZONE veya sistem saat diliminde gösterir.
     """
-    global _ntp_offset, _ntp_last_checked
-    # Offset'in süresi dolmuşsa arka planda yenilemek için bayrak koy ama
-    # mevcut önbelleği kullanmaya devam et (sorguyu bloklamaz)
     now_unix = time.time() + _ntp_offset
+    tz = _get_configured_tz()
+    if tz is not None:
+        return dt.datetime.fromtimestamp(now_unix, tz=tz)
     return dt.datetime.fromtimestamp(now_unix).astimezone()
 
 
@@ -240,12 +268,29 @@ def _try_fix_system_clock() -> bool:
 # Başlangıç + periyodik kontrol (service.py tarafından çağrılır)
 # ------------------------------------------------------------------ #
 
+def _try_fix_timezone() -> bool:
+    """
+    Sistem saat dilimini Europe/Istanbul olarak ayarlamayı dener.
+    timedatectl ile dener; sudo gerektirirse başarısız olabilir.
+    """
+    if platform.system() != "Linux":
+        return False
+    if not shutil.which("timedatectl"):
+        return False
+    r = subprocess.run(
+        ["timedatectl", "set-timezone", "Europe/Istanbul"],
+        capture_output=True, timeout=10,
+    )
+    return r.returncode == 0
+
+
 def ensure_time_accurate(verbose: bool = True) -> None:
     """
     Servis başlangıcında ve periyodik olarak çağrılır.
     1. NTP'ye doğrudan bağlanarak offset ölçer (sudo gerektirmez)
     2. Offset > 60s ise sistem saatini düzeltmeyi dener
-    3. Sistem saati düzeltilemese bile get_current_datetime() doğru zamanı döner
+    3. Sistem saati UTC ise ve NASRI_TIMEZONE ayarlı değilse uyarır
+    4. Sistem saati düzeltilemese bile get_current_datetime() doğru zamanı döner
     """
     global _ntp_offset
 
@@ -253,13 +298,29 @@ def ensure_time_accurate(verbose: bool = True) -> None:
         if verbose:
             print(f"[nasri/time] {msg}")
 
-    log(f"Sistem saati: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    sys_now = dt.datetime.now()
+    log(f"Sistem saati: {sys_now.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    # Saat dilimi kontrolü
+    sys_tz = _get_timezone_name()
+    nasri_tz = os.getenv("NASRI_TIMEZONE", "").strip()
+    if sys_tz in ("UTC", "Etc/UTC", "Universal") and not nasri_tz:
+        log("UYARI: Sistem saat dilimi UTC. Türkiye'deyseniz saatler 3 saat geride görünür.")
+        log("Otomatik düzeltme deneniyor: Europe/Istanbul...")
+        fixed_tz = _try_fix_timezone()
+        if fixed_tz:
+            log("Saat dilimi Europe/Istanbul olarak ayarlandı.")
+        else:
+            log("Saat dilimi düzeltilemedi.")
+            log("Çözüm A: sudo timedatectl set-timezone Europe/Istanbul")
+            log("Çözüm B: .env dosyasına NASRI_TIMEZONE=Europe/Istanbul ekleyin")
 
     # NTP offset'i ölç
     log("NTP sunucusuna bağlanılıyor...")
     offset = _query_ntp_offset()
     _ntp_offset = offset
-    _ntp_last_checked_ref = time.time()
+    global _ntp_last_checked
+    _ntp_last_checked = time.time()
 
     corrected = get_current_datetime()
     log(f"Düzeltilmiş saat: {format_datetime_tr(corrected)} (offset: {offset:+.1f}s)")
