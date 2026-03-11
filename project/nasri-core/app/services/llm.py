@@ -27,9 +27,15 @@ class OllamaError(Exception):
 class OllamaClient:
     """Ollama /api/chat endpoint'ini saran asenkron istemci."""
 
-    def __init__(self, base_url: str, model: str, timeout: float = 45.0) -> None:
+    def __init__(self, base_url: str, model: str, timeout: float | None = None) -> None:
+        import os
         self._base_url = base_url.rstrip("/")
         self._model = model
+        if timeout is None:
+            try:
+                timeout = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
+            except ValueError:
+                timeout = 180.0
         self._timeout = timeout
 
     # ------------------------------------------------------------------
