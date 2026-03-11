@@ -305,15 +305,12 @@ def ensure_time_accurate(verbose: bool = True) -> None:
     sys_tz = _get_timezone_name()
     nasri_tz = os.getenv("NASRI_TIMEZONE", "").strip()
     if sys_tz in ("UTC", "Etc/UTC", "Universal") and not nasri_tz:
-        log("UYARI: Sistem saat dilimi UTC. Türkiye'deyseniz saatler 3 saat geride görünür.")
-        log("Otomatik düzeltme deneniyor: Europe/Istanbul...")
+        log("UYARI: Sistem saat dilimi UTC, NASRI_TIMEZONE ayarlı değil.")
+        log("Konum tespiti servise bırakıldı.")
+        # timedatectl ile düzeltmeyi de dene
         fixed_tz = _try_fix_timezone()
         if fixed_tz:
-            log("Saat dilimi Europe/Istanbul olarak ayarlandı.")
-        else:
-            log("Saat dilimi düzeltilemedi.")
-            log("Çözüm A: sudo timedatectl set-timezone Europe/Istanbul")
-            log("Çözüm B: .env dosyasına NASRI_TIMEZONE=Europe/Istanbul ekleyin")
+            log("timedatectl ile Europe/Istanbul ayarlandı.")
 
     # NTP offset'i ölç
     log("NTP sunucusuna bağlanılıyor...")

@@ -192,6 +192,17 @@ def run_service() -> None:
     _check_soul_integrity()
     _ensure_ollama_running()
 
+    # İlk kurulumda konum tespiti + saat dilimi ayarı
+    try:
+        from .location import run_location_check, _read_env_timezone
+        if not _read_env_timezone():
+            print("[nasri] NASRI_TIMEZONE ayarlı değil, konum tespiti yapılıyor...")
+            run_location_check(force=True, verbose=True)
+        else:
+            run_location_check(force=False, verbose=True)
+    except Exception as exc:
+        print(f"[nasri] Konum tespiti başarısız: {exc}")
+
     # Saat doğruluğunu kontrol et ve gerekirse NTP senkronu yap
     try:
         from .time_sync import ensure_time_accurate
@@ -294,6 +305,13 @@ def run_service() -> None:
                     _stop_api_server(_api_proc)
                     _release_lock()
                     os.execv(sys.executable, [sys.executable, "-m", "nasri_agent.service"])
+            # 6 saatlik konum ve saat dilimi kontrolü
+            try:
+                from .location import run_location_check
+                run_location_check(verbose=False)
+            except Exception:
+                pass
+
             # Saatlik NTP senkron kontrolü
             try:
                 from .time_sync import should_recheck_ntp, ensure_time_accurate
