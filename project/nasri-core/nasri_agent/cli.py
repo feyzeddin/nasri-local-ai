@@ -64,6 +64,10 @@ def cmd_chat() -> int:
 
 
 def cmd_update() -> int:
+    import os
+    import shutil
+    import subprocess
+
     from .updater import local_version, maybe_update
 
     print(f"Mevcut surum: {local_version()}")
@@ -71,7 +75,6 @@ def cmd_update() -> int:
     updated = maybe_update()
     if updated:
         print(f"Guncelleme tamamlandi. Yeni surum: {local_version()}")
-        import subprocess, shutil  # noqa: E401
         if shutil.which("systemctl"):
             print("Servis yeniden baslatiliyor...")
             r = subprocess.run(
@@ -83,8 +86,15 @@ def cmd_update() -> int:
             else:
                 print(f"Servis baslatma basarisiz: {r.stderr.strip()}")
                 print("Manuel olarak calistirin: sudo systemctl restart nasri.service")
-        from .tui import run_watch
-        return run_watch()
+        # Güncelleme sonrası yeni kodu yüklemek için süreci yeniden başlat
+        # ve watch panelini aç (os.execv mevcut bellekteki eski kodu değil
+        # diskteki yeni kodu çalıştırır)
+        nasri_bin = shutil.which("nasri")
+        if nasri_bin:
+            os.execv(nasri_bin, [nasri_bin, "watch"])
+        else:
+            import sys
+            os.execv(sys.executable, [sys.executable, "-m", "nasri_agent", "watch"])
     else:
         from .config import state_file
         import json
