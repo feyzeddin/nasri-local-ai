@@ -294,6 +294,14 @@ def run_service() -> None:
                     _stop_api_server(_api_proc)
                     _release_lock()
                     os.execv(sys.executable, [sys.executable, "-m", "nasri_agent.service"])
+            # Saatlik NTP senkron kontrolü
+            try:
+                from .time_sync import should_recheck_ntp, ensure_time_accurate
+                if should_recheck_ntp(interval_hours=1):
+                    ensure_time_accurate(verbose=False)
+            except Exception:
+                pass
+
             # Günlük donanım taraması
             _run_hardware_scan(first_run=False)
 

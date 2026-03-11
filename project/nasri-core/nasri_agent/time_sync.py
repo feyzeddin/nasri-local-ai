@@ -2,10 +2,11 @@
 time_sync.py — Nasrî'nin Zaman Farkındalığı
 
 Görevler:
-  1. Sistem saatinin güvenilirliğini doğrular (NTP senkronu kontrolü)
-  2. Saat şüpheliyse (yıl < 2025) otomatik NTP senkronu tetikler
-  3. Her sorgu öncesi Ollama'ya güncel tarih/saat bağlamı sağlar
-  4. Timezone'u otomatik tespit eder
+  1. NTP sunucusuna doğrudan UDP ile bağlanarak gerçek zamanı okur
+  2. Sistem saati ile farkı (offset) hesaplar ve önbelleğe alır
+  3. Her tarih/saat sorgusunda offset uygulanmış doğru zamanı döner
+  4. Sistem saatini düzeltemese bile (sudo yok) Ollama'ya doğru zaman gider
+  5. Sistem saatini düzeltmeyi de dener (timedatectl / ntpdate / chronyc)
 
 Platform:
   Linux  — timedatectl + systemd-timesyncd / ntpdate
@@ -18,7 +19,10 @@ import datetime as dt
 import os
 import platform
 import shutil
+import socket
+import struct
 import subprocess
+import time
 from pathlib import Path
 
 # ------------------------------------------------------------------ #
@@ -31,29 +35,74 @@ _TR_MONTHS   = [
     "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
 ]
 
+# Sistem saati ile NTP arasındaki fark (saniye). 0 = güvenilir veya henüz ölçülmedi.
+_ntp_offset: float = 0.0
+_ntp_last_checked: float = 0.0
+_NTP_CHECK_INTERVAL = 3600  # 1 saatte bir yeniden kontrol
+
+_NTP_SERVERS = [
+    "pool.ntp.org",
+    "time.cloudflare.com",
+    "time.google.com",
+    "tr.pool.ntp.org",
+]
+
+
+def _get_ntp_time(server: str = "pool.ntp.org", timeout: int = 5) -> float | None:
+    """
+    NTP sunucusuna ham UDP paketiyle bağlanır, gerçek Unix zamanını döner.
+    Ekstra Python paketi veya sistem izni gerektirmez.
+    """
+    try:
+        client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        client.settimeout(timeout)
+        # RFC 4330 uyumlu basit NTP istek paketi
+        data = b"\x1b" + 47 * b"\x00"
+        client.sendto(data, (server, 123))
+        data, _ = client.recvfrom(1024)
+        client.close()
+        if len(data) < 48:
+            return None
+        # Bytes 40-47: Transmit Timestamp (seconds since Jan 1 1900)
+        t = struct.unpack("!12I", data)[10]
+        # NTP epoch (1900) → Unix epoch (1970): 70 yıl = 2208988800 saniye
+        return float(t - 2208988800)
+    except Exception:
+        return None
+
+
+def _query_ntp_offset() -> float:
+    """
+    Birden fazla NTP sunucusunu dener, sistem saati ile farkı (saniye) döner.
+    Başarısız olursa 0.0 döner.
+    """
+    sys_time = time.time()
+    for server in _NTP_SERVERS:
+        ntp_time = _get_ntp_time(server)
+        if ntp_time is not None:
+            return ntp_time - sys_time
+    return 0.0
+
+
+def refresh_ntp_offset() -> float:
+    """NTP offset'ini tazeler ve önbelleğe alır. Güncel offset'i döner."""
+    global _ntp_offset, _ntp_last_checked
+    _ntp_offset = _query_ntp_offset()
+    _ntp_last_checked = time.time()
+    return _ntp_offset
+
 
 def _get_timezone_name() -> str:
     """Sistemin zaman dilimini okur."""
-    # Linux: /etc/timezone
     try:
         tz = Path("/etc/timezone").read_text(encoding="utf-8").strip()
         if tz:
             return tz
     except Exception:
         pass
-    # TZ env
     tz_env = os.getenv("TZ", "")
     if tz_env:
         return tz_env
-    # zoneinfo (Python 3.9+)
-    try:
-        import zoneinfo
-        localzone = dt.datetime.now().astimezone().tzname()
-        if localzone:
-            return localzone
-    except Exception:
-        pass
-    # Windows: registry veya tzname
     if platform.system() == "Windows":
         try:
             import winreg  # type: ignore
@@ -68,8 +117,15 @@ def _get_timezone_name() -> str:
 
 
 def get_current_datetime() -> dt.datetime:
-    """Yerel saat diliminde şimdiki zamanı döner."""
-    return dt.datetime.now().astimezone()
+    """
+    NTP offset uygulanmış doğru yerel zamanı döner.
+    Sistem saati yanlış olsa bile NTP'den ölçülen fark ile düzeltilir.
+    """
+    global _ntp_offset, _ntp_last_checked
+    # Offset'in süresi dolmuşsa arka planda yenilemek için bayrak koy ama
+    # mevcut önbelleği kullanmaya devam et (sorguyu bloklamaz)
+    now_unix = time.time() + _ntp_offset
+    return dt.datetime.fromtimestamp(now_unix).astimezone()
 
 
 def format_datetime_tr(moment: dt.datetime | None = None) -> str:
@@ -97,7 +153,7 @@ def get_context_line() -> str:
 
 
 # ------------------------------------------------------------------ #
-# Saat güvenilirliği kontrolü
+# Sistem saati düzeltme (sudo gerekebilir — başarısız olursa offset kullanılır)
 # ------------------------------------------------------------------ #
 
 _MIN_PLAUSIBLE_YEAR = 2025
@@ -105,20 +161,8 @@ _MAX_PLAUSIBLE_YEAR = 2100
 
 
 def is_time_plausible() -> bool:
-    """
-    Sistem saatinin mantıklı aralıkta olup olmadığını kontrol eder.
-    Eğitim kesim tarihi (2024) veya çok gelecek → şüpheli.
-    """
     year = dt.datetime.now().year
     return _MIN_PLAUSIBLE_YEAR <= year <= _MAX_PLAUSIBLE_YEAR
-
-
-def _check_ntp_sync_linux() -> bool:
-    """Linux: systemd-timesyncd / chrony senkron durumunu kontrol eder."""
-    if shutil.which("timedatectl"):
-        out = _run(["timedatectl", "show", "--property=NTPSynchronized,Timezone"])
-        return "NTPSynchronized=yes" in out
-    return False
 
 
 def _run(args: list[str], timeout: int = 15) -> str:
@@ -129,8 +173,14 @@ def _run(args: list[str], timeout: int = 15) -> str:
         return ""
 
 
+def _check_ntp_sync_linux() -> bool:
+    if shutil.which("timedatectl"):
+        out = _run(["timedatectl", "show", "--property=NTPSynchronized,Timezone"])
+        return "NTPSynchronized=yes" in out
+    return False
+
+
 def check_ntp_sync() -> bool:
-    """Sistemin NTP ile senkronize olup olmadığını döner."""
     sys = platform.system()
     if sys == "Linux":
         return _check_ntp_sync_linux()
@@ -140,53 +190,45 @@ def check_ntp_sync() -> bool:
     if sys == "Darwin":
         out = _run(["systemsetup", "-getnetworktimeserver"])
         return "networktimeserver" in out.lower()
-    return True  # bilinmeyen platformda varsayılan: güven
+    return True
 
 
-def force_ntp_sync() -> bool:
+def _try_fix_system_clock() -> bool:
     """
-    NTP senkronunu zorla. Başarılıysa True döner.
-    Kullanıcı onayı veya etkileşimi gerektirmez.
+    Sistem saatini düzeltmeyi dener. sudo gerektiren komutlar başarısız
+    olabilir; bu durumda NTP offset ile devam edilir.
     """
     sys = platform.system()
     try:
         if sys == "Linux":
-            # 1. Önce systemd-timesyncd aç (en güvenli)
             if shutil.which("timedatectl"):
                 subprocess.run(
                     ["timedatectl", "set-ntp", "true"],
-                    timeout=10,
-                    capture_output=True,
+                    timeout=10, capture_output=True,
                 )
-                # Senkronu hemen tetikle (chrony varsa)
                 if shutil.which("chronyc"):
                     subprocess.run(
                         ["chronyc", "makestep"],
-                        timeout=10,
-                        capture_output=True,
+                        timeout=10, capture_output=True,
                     )
                 return True
-            # 2. ntpdate fallback
             if shutil.which("ntpdate"):
                 r = subprocess.run(
                     ["ntpdate", "-u", "pool.ntp.org"],
-                    timeout=30,
-                    capture_output=True,
+                    timeout=30, capture_output=True,
                 )
                 return r.returncode == 0
         elif sys == "Darwin":
             if shutil.which("sntp"):
                 r = subprocess.run(
                     ["sntp", "-sS", "pool.ntp.org"],
-                    timeout=30,
-                    capture_output=True,
+                    timeout=30, capture_output=True,
                 )
                 return r.returncode == 0
         elif sys == "Windows":
             r = subprocess.run(
                 ["w32tm", "/resync", "/force"],
-                timeout=30,
-                capture_output=True,
+                timeout=30, capture_output=True,
             )
             return r.returncode == 0
     except Exception:
@@ -195,58 +237,64 @@ def force_ntp_sync() -> bool:
 
 
 # ------------------------------------------------------------------ #
-# Başlangıç kontrolü (service.py tarafından çağrılır)
+# Başlangıç + periyodik kontrol (service.py tarafından çağrılır)
 # ------------------------------------------------------------------ #
 
 def ensure_time_accurate(verbose: bool = True) -> None:
     """
-    Servis başlangıcında çağrılır.
-    1. Saat mantıklı mı kontrol et
-    2. NTP senkronu var mı kontrol et
-    3. Gerekirse senkronla
-    Kullanıcıdan onay istemez, tamamen otomatik.
+    Servis başlangıcında ve periyodik olarak çağrılır.
+    1. NTP'ye doğrudan bağlanarak offset ölçer (sudo gerektirmez)
+    2. Offset > 60s ise sistem saatini düzeltmeyi dener
+    3. Sistem saati düzeltilemese bile get_current_datetime() doğru zamanı döner
     """
+    global _ntp_offset
+
     def log(msg: str) -> None:
         if verbose:
             print(f"[nasri/time] {msg}")
 
-    now_str = format_datetime_tr()
-    log(f"Yerel saat: {now_str}")
+    log(f"Sistem saati: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    if not is_time_plausible():
-        log(f"UYARI: Sistem saati şüpheli (yıl={dt.datetime.now().year}). NTP senkronu tetikleniyor...")
-        ok = force_ntp_sync()
-        if ok:
-            log(f"NTP senkronu başarılı. Yeni saat: {format_datetime_tr()}")
-            try:
-                from .notifications import push as _notify
-                _notify(
-                    title="Sistem saati güncellendi",
-                    message=f"Saat NTP ile düzeltildi: {format_datetime_tr()}",
-                    kind="info",
-                )
-            except Exception:
-                pass
+    # NTP offset'i ölç
+    log("NTP sunucusuna bağlanılıyor...")
+    offset = _query_ntp_offset()
+    _ntp_offset = offset
+    _ntp_last_checked_ref = time.time()
+
+    corrected = get_current_datetime()
+    log(f"Düzeltilmiş saat: {format_datetime_tr(corrected)} (offset: {offset:+.1f}s)")
+
+    abs_offset = abs(offset)
+    if abs_offset > 60:
+        log(f"UYARI: Sistem saati {abs_offset:.0f}s hatalı. Düzeltme deneniyor...")
+        fixed = _try_fix_system_clock()
+        if fixed:
+            # Sistem saati düzeldiyse offset'i sıfırla
+            _ntp_offset = 0.0
+            log(f"Sistem saati düzeltildi: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         else:
-            log("NTP senkronu başarısız. Sistem saati hatalı olabilir.")
-            try:
-                from .notifications import push as _notify
-                _notify(
-                    title="Sistem saati hatalı olabilir",
-                    message=(
-                        f"Mevcut saat: {format_datetime_tr()} — "
-                        "NTP senkronu başarısız. İnternet bağlantısını kontrol edin."
-                    ),
-                    kind="warning",
-                )
-            except Exception:
-                pass
-        return
-
-    # Saat makul ama NTP senkronu yok mu?
-    if not check_ntp_sync():
-        log("NTP senkronu etkin değil. Aktifleştiriliyor...")
-        ok = force_ntp_sync()
-        log("NTP aktifleştirildi." if ok else "NTP etkinleştirilemedi (sudo gerekebilir).")
+            log(f"Sistem saati düzeltilemedi (sudo gerekebilir). NTP offset ile devam: {offset:+.1f}s")
+        try:
+            from .notifications import push as _notify
+            _notify(
+                title="Saat düzeltme" + (" başarılı" if fixed else " — offset ile devam"),
+                message=(
+                    f"Doğru saat: {format_datetime_tr(corrected)}"
+                    if fixed else
+                    f"Sistem saati {abs_offset:.0f}s hatalı, NTP offset uygulandı."
+                ),
+                kind="info" if fixed else "warning",
+            )
+        except Exception:
+            pass
+    elif abs_offset > 5:
+        log(f"Küçük saat farkı ({offset:+.1f}s) — NTP offset uygulandı, sistem saati değiştirilmedi.")
     else:
-        log("NTP senkronu aktif ve saat doğru.")
+        log("Saat doğru.")
+
+
+def should_recheck_ntp(interval_hours: int = 1) -> bool:
+    """NTP kontrolünün yenilenmesi gerekip gerekmediğini döner."""
+    if _ntp_last_checked == 0.0:
+        return True
+    return (time.time() - _ntp_last_checked) > interval_hours * 3600
