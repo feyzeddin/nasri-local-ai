@@ -428,6 +428,8 @@ def ensure_time_accurate(verbose: bool = True) -> None:
         fixed_tz = _try_fix_timezone(fix_tz)
         if fixed_tz:
             log(f"Sistem saat dilimi ayarlandı: {fix_tz}")
+            # Aynı process'te de hemen geçerli olsun
+            os.environ["NASRI_TIMEZONE"] = fix_tz
         else:
             log(f"Sistem saat dilimi ayarlanamadı (root/sudo gerekebilir): {fix_tz}")
 
