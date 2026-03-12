@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.25 - 2026-03-12
+
+### Added
+- `install.sh`: Deploy key kurulum bölümü — `~/.nasri/.deploy_key` (Ed25519) oluşturur, `~/.ssh/config`'e nasri girişi ekler, GitHub'a eklenene kadar public key gösterip bekler, bağlantıyı doğrular.
+- `install.sh`: Mevcut kurulum varsa git remote URL'si otomatik SSH'ya güncellenir.
+- `config.py`: `deploy_key_path()` helper → `~/.nasri/.deploy_key`
+- `updater.py`: `_git_env()` — deploy key mevcutsa `GIT_SSH_COMMAND` ile git fetch/pull çalıştırır.
+
+
 ## 0.3.24 - 2026-03-12
 
 ### Added

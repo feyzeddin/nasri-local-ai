@@ -437,6 +437,109 @@ if command_exists ollama && curl -s --max-time 3 "http://localhost:11434/api/tag
 fi
 
 # =============================================================================
+# DEPLOY KEY — Private repo SSH erişimi
+# Her cihazda bir kez üretilir, GitHub Deploy Keys'e eklenir.
+# Sonraki güncellemeler bu key ile şifresiz çalışır.
+# =============================================================================
+step "3.5/7 — GitHub Deploy Key"
+
+DEPLOY_KEY="$NASRI_HOME/.deploy_key"
+DEPLOY_PUB="$NASRI_HOME/.deploy_key.pub"
+GITHUB_HOST_ALIAS="github-nasri"
+REPO_SSH_URL="git@${GITHUB_HOST_ALIAS}:feyzeddin/nasri-local-ai.git"
+SSH_CONFIG_FILE="$ACTUAL_HOME/.ssh/config"
+
+# Key yoksa oluştur
+if [ ! -f "$DEPLOY_KEY" ]; then
+    ssh-keygen -t ed25519 -C "nasri@$(hostname)" -f "$DEPLOY_KEY" -N "" -q
+    chmod 600 "$DEPLOY_KEY"
+    chmod 644 "$DEPLOY_PUB"
+    ok "Deploy key oluşturuldu"
+else
+    ok "Deploy key mevcut: $DEPLOY_KEY"
+fi
+
+# ~/.ssh/config'e nasri girişi ekle (yoksa)
+mkdir -p "$ACTUAL_HOME/.ssh"
+chmod 700 "$ACTUAL_HOME/.ssh"
+if ! grep -q "Host $GITHUB_HOST_ALIAS" "$SSH_CONFIG_FILE" 2>/dev/null; then
+    cat >> "$SSH_CONFIG_FILE" << SSHCONF
+
+# Nasri deploy key — otomatik eklendi
+Host $GITHUB_HOST_ALIAS
+    HostName github.com
+    User git
+    IdentityFile $DEPLOY_KEY
+    StrictHostKeyChecking no
+    IdentitiesOnly yes
+SSHCONF
+    chmod 600 "$SSH_CONFIG_FILE"
+    ok "SSH config güncellendi"
+fi
+
+# Mevcut repo varsa remote URL'yi SSH'ya güncelle
+if [ -d "$NASRI_SRC/.git" ]; then
+    git -C "$NASRI_SRC" remote set-url origin "$REPO_SSH_URL" 2>/dev/null && \
+        ok "Git remote SSH'ya güncellendi" || true
+fi
+
+# Repo yoksa → deploy key'in GitHub'a eklenip eklenmediğini kontrol et
+if [ ! -d "$NASRI_SRC/.git" ]; then
+    # Önce mevcut key ile bağlantı testi yap
+    DEPLOY_KEY_ADDED=false
+    if ssh -i "$DEPLOY_KEY" -o StrictHostKeyChecking=no -o IdentitiesOnly=yes \
+          -o BatchMode=yes git@github.com exit 2>/dev/null; then
+        DEPLOY_KEY_ADDED=true
+    elif GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no -o IdentitiesOnly=yes" \
+         git ls-remote "$REPO_SSH_URL" HEAD &>/dev/null 2>&1; then
+        DEPLOY_KEY_ADDED=true
+    fi
+
+    if [ "$DEPLOY_KEY_ADDED" = false ]; then
+        echo ""
+        echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║  GitHub Deploy Key — Tek Seferlik Kurulum                ║${NC}"
+        echo -e "${YELLOW}╠══════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${YELLOW}║                                                          ║${NC}"
+        echo -e "${YELLOW}║  1. GitHub'a gidin:                                      ║${NC}"
+        echo -e "${YELLOW}║     github.com/feyzeddin/nasri-local-ai                  ║${NC}"
+        echo -e "${YELLOW}║     → Settings → Deploy Keys → Add deploy key            ║${NC}"
+        echo -e "${YELLOW}║                                                          ║${NC}"
+        echo -e "${YELLOW}║  2. Aşağıdaki public key'i yapıştırın:                   ║${NC}"
+        echo -e "${YELLOW}║                                                          ║${NC}"
+        echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${GREEN}$(cat "$DEPLOY_PUB")${NC}"
+        echo ""
+        echo -e "${YELLOW}  (Allow write access KAPALI bırakın — sadece okuma yeterli)${NC}"
+        echo ""
+        # GitHub'a eklenene kadar döngüde bekle
+        while true; do
+            echo -en "${CYAN}Deploy key'i GitHub'a ekledikten sonra Enter'a basın...${NC} "
+            read -r < /dev/tty
+            if GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no -o IdentitiesOnly=yes" \
+               git ls-remote "$REPO_SSH_URL" HEAD &>/dev/null 2>&1; then
+                ok "Deploy key doğrulandı — GitHub erişimi başarılı"
+                break
+            else
+                warn "Erişim başarısız, key henüz eklenmemiş olabilir. Tekrar deneyin..."
+            fi
+        done
+    else
+        ok "Deploy key zaten GitHub'a eklenmiş"
+    fi
+fi
+
+# REPO_URL'yi SSH'ya güncelle (clone için)
+REPO_URL="$REPO_SSH_URL"
+export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
+
+# Dosya sahipliğini düzelt (sudo ile kurulmuşsa)
+if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$DEPLOY_KEY" "$DEPLOY_PUB" 2>/dev/null || true
+fi
+
+# =============================================================================
 # ADIM 4: REPO
 # =============================================================================
 step "4/7 — Nasri kaynak kodu"

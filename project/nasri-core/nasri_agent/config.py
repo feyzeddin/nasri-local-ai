@@ -50,6 +50,11 @@ def api_port() -> int:
     return int(os.getenv("NASRI_API_PORT", "8000"))
 
 
+def deploy_key_path() -> Path:
+    """Deploy SSH key dosyasının yolu (~/.nasri/.deploy_key)."""
+    return install_dir().parent / ".deploy_key"
+
+
 def api_app_dir() -> Path:
     """FastAPI app paketinin bulunduğu dizin (nasri-core/)."""
     # Kurulu ortamda: install_dir()/project/nasri-core

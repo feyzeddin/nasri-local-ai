@@ -5,17 +5,32 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .config import install_dir, local_version, state_file
+from .config import install_dir, local_version, state_file, deploy_key_path
 from .notifications import push as _notify
 
 
-def _run(args: list[str], cwd: Path | None = None) -> tuple[int, str]:
+def _git_env() -> dict:
+    """
+    Git komutları için ortam değişkenlerini döner.
+    Deploy key mevcutsa GIT_SSH_COMMAND ile kullanılır.
+    """
+    key = deploy_key_path()
+    env = dict(os.environ)
+    if key.exists():
+        env["GIT_SSH_COMMAND"] = (
+            f"ssh -i {key} -o StrictHostKeyChecking=no -o IdentitiesOnly=yes"
+        )
+    return env
+
+
+def _run(args: list[str], cwd: Path | None = None, use_git_env: bool = False) -> tuple[int, str]:
     proc = subprocess.run(
         args,
         cwd=str(cwd) if cwd else None,
         capture_output=True,
         text=True,
         check=False,
+        env=_git_env() if use_git_env else None,
     )
     output = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, output.strip()
@@ -138,7 +153,7 @@ def maybe_update() -> bool:
         _update_state(last_update_result="skip:no-git-repo")
         return False
 
-    rc, fetch_out = _run(["git", "fetch", "origin", "main"], cwd=repo)
+    rc, fetch_out = _run(["git", "fetch", "origin", "main"], cwd=repo, use_git_env=True)
     if rc != 0:
         log(f"HATA: git fetch başarısız (rc={rc}): {fetch_out[:120]}")
         _update_state(last_update_result=f"error:fetch-failed:{fetch_out[:80]}")
@@ -164,7 +179,7 @@ def maybe_update() -> bool:
         return False
 
     log(f"Yeni commit var, indiriliyor...")
-    rc_pull, pull_out = _run(["git", "pull", "--ff-only", "origin", "main"], cwd=repo)
+    rc_pull, pull_out = _run(["git", "pull", "--ff-only", "origin", "main"], cwd=repo, use_git_env=True)
     if rc_pull != 0:
         log(f"HATA: git pull başarısız: {pull_out[:120]}")
         _update_state(last_update_result=f"error:pull-failed:{pull_out[:120]}")
