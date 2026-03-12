@@ -184,8 +184,23 @@ def cmd_setup_device(argv: list[str] | None = None) -> int:
 
 
 def cmd_watch() -> int:
-    from .tui import run_watch
+    # textual kurulu değilse otomatik kur
+    try:
+        import textual  # noqa: F401
+    except ImportError:
+        import subprocess as _sp
+        import sys as _sys
+        print("textual paketi bulunamadı, kuruluyor...")
+        r = _sp.run(
+            [_sys.executable, "-m", "pip", "install", "textual>=0.60.0", "--quiet"],
+            timeout=120,
+        )
+        if r.returncode != 0:
+            print("textual kurulamadı. Elle kurun: pip install 'textual>=0.60.0'")
+            return 1
+        print("textual kuruldu.")
 
+    from .tui import run_watch
     return run_watch()
 
 

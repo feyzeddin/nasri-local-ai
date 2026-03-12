@@ -22,6 +22,31 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
+# Modül adı → pip paket adı eşleşme tablosu
+# (modül adı ile pip adı farklı olduğunda burada tanımlanır)
+_MODULE_TO_PACKAGE: dict[str, str] = {
+    "textual": "textual>=0.60.0",
+    "paho": "paho-mqtt>=2.0.0",
+    "bs4": "beautifulsoup4",
+    "cv2": "opencv-python",
+    "PIL": "Pillow",
+    "sklearn": "scikit-learn",
+    "yaml": "PyYAML",
+    "dotenv": "python-dotenv",
+    "Crypto": "pycryptodome",
+    "nacl": "PyNaCl",
+    "psutil": "psutil>=5.9.0",
+    "zeroconf": "zeroconf>=0.136.0",
+    "paramiko": "paramiko>=3.0.0",
+    "chromadb": "chromadb",
+    "cryptography": "cryptography",
+    "httpx": "httpx>=0.28.0",
+    "fastapi": "fastapi>=0.100.0",
+    "uvicorn": "uvicorn[standard]",
+    "redis": "redis>=4.0.0",
+}
+
+
 def _heal_missing_module(detail: str) -> bool:
     """'No module named X' hatasında pip install dener."""
     import re  # noqa: PLC0415
@@ -29,17 +54,18 @@ def _heal_missing_module(detail: str) -> bool:
     m = re.search(r"No module named '([^']+)'", detail)
     if not m:
         return False
-    mod = m.group(1).replace(".", "-")
-    print(f"  [heal] pip install {mod} deneniyor...")
+    mod_name = m.group(1).split(".")[0]  # alt modül varsa üst modülü al
+    # Bilinen haritadan pip adını bul, yoksa modül adını kullan
+    pip_pkg = _MODULE_TO_PACKAGE.get(mod_name, mod_name.replace("_", "-"))
+    print(f"  [heal] pip install {pip_pkg} deneniyor...")
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", mod, "--quiet"],
-            timeout=60,
+            [sys.executable, "-m", "pip", "install", pip_pkg, "--quiet"],
+            timeout=120,
         )
         if result.returncode == 0:
-            # modülü yeniden yükle
             try:
-                importlib.import_module(m.group(1))
+                importlib.import_module(mod_name)
             except ImportError:
                 pass
             return True
@@ -143,6 +169,39 @@ def _ask_ollama(prompt: str, model: str = "llama3") -> str:
         return f"[hata: {exc}]"
 
 
+def _ask_groq(prompt: str) -> str:
+    """Groq API üzerinden LLM tanısı alır (Ollama yoksa fallback)."""
+    import json  # noqa: PLC0415
+    import os    # noqa: PLC0415
+
+    api_key = os.getenv("GROQ_API_KEY", "")
+    if not api_key:
+        return ""
+    api_url = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions")
+    model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+    payload = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 300,
+        "temperature": 0.1,
+    }).encode()
+    req = urllib.request.Request(  # noqa: S310
+        api_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310
+            data = json.loads(resp.read())
+            return data["choices"][0]["message"]["content"]
+    except Exception as exc:
+        return f"[groq-hata: {exc}]"
+
+
 def _safe_commands(response: str) -> list[str]:
     """
     Ollama yanıtından güvenli bash komutlarını çıkarır.
@@ -166,9 +225,9 @@ def ai_heal(result: "CheckResult", model: str = "llama3") -> bool:
     """
     Ollama LLM'den onarım önerisi alır ve güvenli komutları çalıştırır.
     """
-    if not _ollama_available():
-        print("  [heal/ai] Ollama erişilemiyor, AI tanı atlanıyor")
-        return False
+    use_groq = not _ollama_available()
+    if use_groq:
+        print("  [heal/ai] Ollama erişilemiyor, Groq fallback deneniyor...")
 
     prompt = (
         "Sen bir Linux sistem yöneticisi ve Python uzmanısın. "
@@ -182,8 +241,12 @@ def ai_heal(result: "CheckResult", model: str = "llama3") -> bool:
         "rm -rf gibi tehlikeli komutlar önerme."
     )
 
-    print(f"  [heal/ai] Ollama'ya tanı isteği gönderiliyor: {result.name}")
-    response = _ask_ollama(prompt, model=model)
+    if use_groq:
+        print(f"  [heal/ai] Groq'a tanı isteği gönderiliyor: {result.name}")
+        response = _ask_groq(prompt)
+    else:
+        print(f"  [heal/ai] Ollama'ya tanı isteği gönderiliyor: {result.name}")
+        response = _ask_ollama(prompt, model=model)
 
     if not response or response.startswith("[hata"):
         print(f"  [heal/ai] Yanıt alınamadı: {response}")

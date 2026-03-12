@@ -173,6 +173,13 @@ def _run_preflight_with_heal() -> bool:
         if not all_ok2:
             failed = [r.name for r in results2 if not r.ok]
             print(f"[nasri] UYARI: Zorunlu kontroller başarısız: {failed}")
+            # Log tabanlı AI kurtarma dene
+            try:
+                from .selfheal_log import run_crash_recovery
+                print("[nasri] Log tabanlı otomatik kurtarma deneniyor...")
+                run_crash_recovery(verbose=True)
+            except Exception as exc:
+                print(f"[nasri] Kurtarma başarısız: {exc}")
             print("[nasri] Servis başlatma iptal edildi. Lütfen hataları manuel düzeltin.")
             return False
 

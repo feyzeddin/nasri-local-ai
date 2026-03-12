@@ -117,6 +117,8 @@ _OPTIONAL: list[Callable[[], CheckResult]] = [
     _check_ollama,
     lambda: _check_module("chromadb"),
     lambda: _check_module("cryptography"),
+    lambda: _check_module("textual"),
+    lambda: _check_module("psutil"),
 ]
 
 
