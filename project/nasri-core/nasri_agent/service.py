@@ -20,7 +20,7 @@ from .config import (
 )
 from .healer import heal_results
 from .preflight import run_preflight
-from .model_manager import run_model_research_cycle, should_research_models as should_research_models_fn
+from .model_manager import run_model_research_cycle, should_research_models as should_research_models_fn, get_next_check_info
 from .notifications import push as _notify
 from .updater import maybe_update, should_check_update
 
@@ -330,19 +330,16 @@ def run_service() -> None:
             # Günlük donanım taraması
             _run_hardware_scan(first_run=False)
 
-            # Günlük model araştırma döngüsü
-            last_model_check = current.get("last_model_check")
-            try:
-                model_interval = int(os.getenv("NASRI_MODEL_CHECK_INTERVAL_HOURS", "24"))
-            except ValueError:
-                model_interval = 24
-            if should_research_models_fn(last_model_check, interval_hours=model_interval):
-                _write_state(last_model_check=dt.datetime.now(dt.timezone.utc).isoformat())
+            # Model araştırma döngüsü — adaptif zamanlayıcı
+            # (1g → 4g → 7g → 14g, güncelleme bulununca 1g'ye sıfırlanır)
+            if should_research_models_fn():
                 try:
                     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
                     run_model_research_cycle(ollama_url=ollama_url)
-                except Exception:
-                    pass
+                    next_check = get_next_check_info()
+                    print(f"[nasri] Model araştırma tamamlandı. Sonraki kontrol: {next_check}")
+                except Exception as exc:
+                    print(f"[nasri] Model araştırma hatası: {exc}")
 
             time.sleep(30)
 

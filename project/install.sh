@@ -54,7 +54,7 @@ NASRI_VENV="$NASRI_HOME/venv"
 NASRI_DATA_DIR="$NASRI_HOME/data"
 NASRI_LOG="$NASRI_HOME/install.log"
 REPO_URL="${NASRI_REPO_URL:-https://github.com/feyzeddin/nasri-local-ai.git}"
-OLLAMA_MODEL="${NASRI_MODEL:-llama3}"
+OLLAMA_MODEL="${NASRI_MODEL:-qwen3:4b}"
 API_PORT="${NASRI_API_PORT:-8000}"
 MAX_RETRY=3
 
@@ -410,13 +410,29 @@ else
     fi
 fi
 
-# Model kontrolü
+# Model kontrolü — zaman aşımı yok, başarılı olana kadar 3 kez dene
 if command_exists ollama && curl -s --max-time 3 "http://localhost:11434/api/tags" &>/dev/null; then
-    if ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
+    if ollama list 2>/dev/null | grep -q "${OLLAMA_MODEL%%:*}"; then
         ok "Model $OLLAMA_MODEL mevcut"
     else
-        log "Model indiriliyor: $OLLAMA_MODEL (bu biraz sürebilir)..."
-        ollama pull "$OLLAMA_MODEL" && ok "Model hazır: $OLLAMA_MODEL" || warn "Model indirilemedi"
+        log "Model indiriliyor: $OLLAMA_MODEL"
+        log "(İnternet hızına göre 5-30 dakika sürebilir — zaman aşımı yok, bekleniyor...)"
+        MODEL_PULLED=false
+        for attempt in 1 2 3; do
+            if ollama pull "$OLLAMA_MODEL"; then
+                ok "Model hazır: $OLLAMA_MODEL"
+                MODEL_PULLED=true
+                break
+            else
+                if [ "$attempt" -lt 3 ]; then
+                    warn "İndirme başarısız (deneme $attempt/3), 30 saniye sonra tekrar deneniyor..."
+                    sleep 30
+                fi
+            fi
+        done
+        if [ "$MODEL_PULLED" = false ]; then
+            warn "Model şu an indirilemedi. Nasri servis başlangıcında otomatik olarak tekrar deneyecek."
+        fi
     fi
 fi
 

@@ -1,12 +1,18 @@
 """
-model_manager.py — Otomatik model araştırma, ihtiyaç listesi ve güncelleme.
+model_manager.py — Otomatik model araştırma ve adaptif güncelleme döngüsü.
 
-Günlük döngü:
-1. Kullanıcının dilini ve mevcut modelin kalitesini değerlendirir
-2. Daha uygun model varsa Ollama üzerinden arka planda indirir
-3. İndirme tamamlandığında .env günceller, servisi yeniden başlatır
-4. Çözülemeyen gereksinimleri ihtiyaç listesinde saklar
-5. Bir gereksinim çözüldüğünde listeden çıkarır, bildirim gönderir
+Adaptif kontrol aralığı (güncelleme bulunamazsa aralık uzar):
+  Güncelleme bulundu  →  1 gün sonra kontrol
+  Yok (1. seferinde) →  4 gün
+  Yok (2. seferinde) →  7 gün
+  Yok (3+. seferinde) → 14 gün (maksimum, döngü devam eder)
+  Güncelleme bulununca → 1 güne sıfırla
+
+Döngü:
+1. Kullanıcının dilini ve mevcut modeli değerlendirir
+2. OLLAMA_MODELS listesinden daha iyi bir model arar
+3. Uygun model varsa arka planda indirir, .env günceller, servisi yeniden başlatır
+4. Araştırma sonucunu kaydeder, bir sonraki kontrol aralığını ayarlar
 """
 from __future__ import annotations
 
@@ -22,18 +28,43 @@ from .config import data_dir, install_dir
 from .notifications import push as _notify
 
 # ------------------------------------------------------------------ #
-# Önerilen model veritabanı (Ollama üzerinden erişilebilir)
+# Model veritabanı (Ollama üzerinden erişilebilir)
+# Skor: 1-10, yüksek = daha iyi
 # ------------------------------------------------------------------ #
 
 OLLAMA_MODELS: list[dict] = [
     {
-        "name": "aya-expanse:8b",
-        "size_gb": 4.7,
-        "languages": ["tr", "ar", "hi", "zh", "fr", "de", "en", "es", "pt", "it", "nl", "ru", "ja", "ko"],
+        "name": "qwen3:4b",
+        "size_gb": 2.5,
+        "languages": ["tr", "en", "zh", "ar", "de", "fr", "es", "pt", "it", "ru", "ja", "ko",
+                      "nl", "pl", "sv", "da", "fi", "no", "cs", "hu", "ro"],
         "score_multilingual": 9,
         "score_turkish": 9,
-        "min_ram_gb": 6,
-        "notes": "Cohere Aya Expanse — 23 dil, Türkçe için en iyi seçim",
+        "min_ram_gb": 3,
+        "notes": "Qwen3 4B — 119 dil, hızlı, düşük RAM, Türkçe mükemmel",
+        "added_version": "0.3.24",
+    },
+    {
+        "name": "aya-expanse:8b",
+        "size_gb": 5.1,
+        "languages": ["tr", "ar", "hi", "zh", "fr", "de", "en", "es", "pt", "it", "nl",
+                      "ru", "ja", "ko", "pl", "sv", "uk", "vi", "id", "el", "he"],
+        "score_multilingual": 10,
+        "score_turkish": 10,
+        "min_ram_gb": 7,
+        "notes": "Cohere Aya Expanse 8B — 23 dil için özel eğitildi, Türkçe en iyi",
+        "added_version": "0.3.24",
+    },
+    {
+        "name": "gemma3:4b",
+        "size_gb": 3.3,
+        "languages": ["tr", "en", "de", "fr", "es", "pt", "it", "ar", "zh", "ja", "ko",
+                      "ru", "hi", "nl", "pl", "sv"],
+        "score_multilingual": 8,
+        "score_turkish": 8,
+        "min_ram_gb": 4,
+        "notes": "Gemma 3 4B — Google, 140+ dil, hızlı, 128K context",
+        "added_version": "0.3.24",
     },
     {
         "name": "qwen2.5:7b",
@@ -43,15 +74,7 @@ OLLAMA_MODELS: list[dict] = [
         "score_turkish": 8,
         "min_ram_gb": 6,
         "notes": "Qwen 2.5 7B — Alibaba, mükemmel çok dilli performans",
-    },
-    {
-        "name": "llama3.1:8b",
-        "size_gb": 4.7,
-        "languages": ["en", "tr", "de", "fr", "es", "pt", "it", "hi"],
-        "score_multilingual": 8,
-        "score_turkish": 7,
-        "min_ram_gb": 6,
-        "notes": "Llama 3.1 8B — dengeli performans",
+        "added_version": "0.3.22",
     },
     {
         "name": "llama3.2:3b",
@@ -61,24 +84,17 @@ OLLAMA_MODELS: list[dict] = [
         "score_turkish": 7,
         "min_ram_gb": 4,
         "notes": "Llama 3.2 3B — küçük ve hızlı, düşük RAM'li cihazlar için",
+        "added_version": "0.3.22",
     },
     {
-        "name": "gemma2:9b",
-        "size_gb": 5.5,
-        "languages": ["en", "tr", "de", "fr", "es", "pt", "it", "ar"],
+        "name": "llama3.1:8b",
+        "size_gb": 4.7,
+        "languages": ["en", "tr", "de", "fr", "es", "pt", "it", "hi"],
         "score_multilingual": 8,
         "score_turkish": 7,
-        "min_ram_gb": 8,
-        "notes": "Gemma 2 9B — Google, yüksek kalite",
-    },
-    {
-        "name": "mistral:7b",
-        "size_gb": 4.1,
-        "languages": ["en", "fr", "de", "es", "it", "tr"],
-        "score_multilingual": 7,
-        "score_turkish": 6,
         "min_ram_gb": 6,
-        "notes": "Mistral 7B v0.3",
+        "notes": "Llama 3.1 8B — Meta, dengeli performans",
+        "added_version": "0.3.22",
     },
     {
         "name": "llama3:8b",
@@ -87,11 +103,91 @@ OLLAMA_MODELS: list[dict] = [
         "score_multilingual": 7,
         "score_turkish": 6,
         "min_ram_gb": 6,
-        "notes": "Llama 3 8B — varsayılan, temel seviye",
+        "notes": "Llama 3 8B — temel seviye varsayılan",
+        "added_version": "0.3.22",
     },
 ]
 
-_UPGRADE_SCORE_THRESHOLD = 2  # mevcut modelden en az bu kadar daha iyi olmalı
+_UPGRADE_SCORE_THRESHOLD = 1  # mevcut modelden en az bu kadar daha iyi olmalı
+
+# ------------------------------------------------------------------ #
+# Adaptif kontrol aralığı
+# ------------------------------------------------------------------ #
+
+# Güncelleme bulunamadığında ardışık başarısız kontrol sayısına göre gün cinsinden aralıklar
+_RESEARCH_INTERVAL_LADDER: list[int] = [1, 4, 7, 14]
+
+
+def _research_state_file() -> Path:
+    return data_dir() / "model_research_state.json"
+
+
+def _load_research_state() -> dict:
+    f = _research_state_file()
+    if not f.exists():
+        return {}
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_research_state(state: dict) -> None:
+    f = _research_state_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def should_research_models(last_checked_iso: Optional[str] = None, interval_hours: int = 24) -> bool:
+    """Adaptif aralıkla araştırma zamanı geldi mi?"""
+    state = _load_research_state()
+    last_checked = state.get("last_checked")
+    if not last_checked:
+        return True
+    interval_days = state.get("current_interval_days", 1)
+    try:
+        last = dt.datetime.fromisoformat(last_checked)
+        elapsed = dt.datetime.now(dt.timezone.utc) - last
+        return elapsed >= dt.timedelta(days=interval_days)
+    except Exception:
+        return True
+
+
+def record_research_result(found_upgrade: bool) -> None:
+    """
+    Araştırma sonucunu kaydeder ve adaptif aralığı günceller.
+
+    Güncelleme bulundu → aralık 1 güne sıfırlanır
+    Bulunamadı        → aralık merdivende bir basamak yukarı çıkar (max 14 gün)
+    """
+    state = _load_research_state()
+    now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
+
+    if found_upgrade:
+        state["consecutive_no_update"] = 0
+        state["current_interval_days"] = _RESEARCH_INTERVAL_LADDER[0]  # 1 gün
+    else:
+        no_update = state.get("consecutive_no_update", 0) + 1
+        state["consecutive_no_update"] = no_update
+        idx = min(no_update, len(_RESEARCH_INTERVAL_LADDER) - 1)
+        state["current_interval_days"] = _RESEARCH_INTERVAL_LADDER[idx]
+
+    state["last_checked"] = now_iso
+    _save_research_state(state)
+
+
+def get_next_check_info() -> str:
+    """Bir sonraki kontrol zamanını okunabilir string olarak döner."""
+    state = _load_research_state()
+    last = state.get("last_checked")
+    interval_days = state.get("current_interval_days", 1)
+    if not last:
+        return "henüz kontrol edilmedi"
+    try:
+        next_check = dt.datetime.fromisoformat(last) + dt.timedelta(days=interval_days)
+        return next_check.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return "bilinmiyor"
 
 
 # ------------------------------------------------------------------ #
@@ -122,7 +218,6 @@ def _save_needs(items: list[dict]) -> None:
 def add_need(description: str, kind: str = "language_quality", trigger: str = "auto") -> str:
     """İhtiyaç listesine yeni bir madde ekler. Oluşturulan ID'yi döner."""
     needs = _load_needs()
-    # Aynı türde açık ihtiyaç varsa tekrar ekleme
     for n in needs:
         if not n.get("resolved") and n.get("kind") == kind:
             return n["id"]
@@ -166,28 +261,73 @@ def get_open_needs() -> list[dict]:
 def _available_ram_gb() -> float:
     """Kullanılabilir RAM'i GB cinsinden döner."""
     try:
-        with open("/proc/meminfo", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("MemAvailable:"):
-                    kb = int(line.split()[1])
-                    return kb / 1024 / 1024
+        import platform
+        if platform.system() == "Linux":
+            with open("/proc/meminfo", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("MemAvailable:"):
+                        kb = int(line.split()[1])
+                        return kb / 1024 / 1024
+        elif platform.system() == "Darwin":
+            import subprocess as _sp
+            r = _sp.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True)
+            if r.returncode == 0:
+                return int(r.stdout.strip()) / 1024 / 1024 / 1024
+        elif platform.system() == "Windows":
+            import ctypes
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong),
+                             ("dwMemoryLoad", ctypes.c_ulong),
+                             ("ullTotalPhys", ctypes.c_ulonglong),
+                             ("ullAvailPhys", ctypes.c_ulonglong),
+                             ("ullTotalPageFile", ctypes.c_ulonglong),
+                             ("ullAvailPageFile", ctypes.c_ulonglong),
+                             ("ullTotalVirtual", ctypes.c_ulonglong),
+                             ("ullAvailVirtual", ctypes.c_ulonglong),
+                             ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            stat = MEMORYSTATUSEX()
+            stat.dwLength = ctypes.sizeof(stat)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))  # type: ignore[attr-defined]
+            return stat.ullAvailPhys / 1024 / 1024 / 1024
     except Exception:
         pass
-    return 8.0  # varsayılan: 8 GB
+    return 8.0
 
 
 def _detect_user_language() -> str:
-    """Kullanıcının dilini state veya env'den okur."""
+    """
+    Kullanıcının dilini state, location önbelleği veya env'den okur.
+    Dil kodu döner (örn. 'tr', 'en', 'de').
+    """
+    # 1. state.json'dan
     try:
         state_path = data_dir() / "state.json"
         if state_path.exists():
             state = json.loads(state_path.read_text(encoding="utf-8"))
             lang = state.get("detected_language")
             if lang:
-                return lang
+                return lang.lower()
     except Exception:
         pass
-    # DEFAULT_LOCALE env'e bak
+    # 2. Konum önbelleğinden ülkeye göre tahmin
+    try:
+        from .location import _load_cached as _loc_cache
+        cached = _loc_cache()
+        country_code = cached.get("country_code", "").upper()
+        _COUNTRY_LANG = {
+            "TR": "tr", "AZ": "tr", "US": "en", "GB": "en", "AU": "en",
+            "DE": "de", "AT": "de", "CH": "de", "FR": "fr", "BE": "fr",
+            "ES": "es", "MX": "es", "AR": "es", "BR": "pt", "PT": "pt",
+            "RU": "ru", "UA": "uk", "CN": "zh", "TW": "zh", "JP": "ja",
+            "KR": "ko", "SA": "ar", "AE": "ar", "EG": "ar", "IN": "hi",
+            "NL": "nl", "PL": "pl", "SE": "sv", "DK": "da", "NO": "no",
+            "FI": "fi", "IT": "it", "RO": "ro", "HU": "hu", "CZ": "cs",
+        }
+        if country_code in _COUNTRY_LANG:
+            return _COUNTRY_LANG[country_code]
+    except Exception:
+        pass
+    # 3. DEFAULT_LOCALE env
     return os.getenv("DEFAULT_LOCALE", "tr").lower()
 
 
@@ -204,10 +344,15 @@ def _get_current_model() -> str:
 
 
 def _model_score(model_info: dict, lang: str) -> int:
-    """Dil için modelin skorunu döner."""
+    """Kullanıcı diline göre modelin skorunu döner."""
     if lang == "tr":
         return model_info.get("score_turkish", 5)
-    return model_info.get("score_multilingual", 5)
+    # Dilin model'in desteklenen dilleri arasında olup olmadığını kontrol et
+    langs = model_info.get("languages", [])
+    if lang in langs:
+        return model_info.get("score_multilingual", 5)
+    # Dil desteklenmiyorsa skoru düşür
+    return max(1, model_info.get("score_multilingual", 5) - 3)
 
 
 def _find_model_info(model_name: str) -> Optional[dict]:
@@ -233,12 +378,12 @@ def _ollama_local_models(ollama_url: str) -> list[str]:
         return []
 
 
-def _ollama_pull(model_name: str, ollama_url: str) -> bool:
-    """Modeli arka planda Ollama ile indirir. Başarılıysa True döner."""
+def _ollama_pull(model_name: str) -> bool:
+    """Modeli Ollama ile indirir. Zaman aşımı yok — model boyutu ne olursa olsun bekler."""
     try:
         result = subprocess.run(
             ["ollama", "pull", model_name],
-            timeout=3600,  # 1 saat
+            # timeout yok: büyük modeller uzun sürebilir
             capture_output=True,
             text=True,
         )
@@ -274,7 +419,6 @@ def _update_env_model(model_name: str) -> bool:
 
 
 def _request_service_restart() -> None:
-    """Servis döngüsünün yeniden başlatma flag'ini yazar."""
     try:
         (data_dir() / ".restart_flag").touch()
     except Exception:
@@ -282,27 +426,14 @@ def _request_service_restart() -> None:
 
 
 # ------------------------------------------------------------------ #
-# Zamanlama
-# ------------------------------------------------------------------ #
-
-def should_research_models(last_checked_iso: Optional[str], interval_hours: int = 24) -> bool:
-    if not last_checked_iso:
-        return True
-    try:
-        last = dt.datetime.fromisoformat(last_checked_iso)
-    except ValueError:
-        return True
-    return (dt.datetime.now(dt.timezone.utc) - last) >= dt.timedelta(hours=interval_hours)
-
-
-# ------------------------------------------------------------------ #
-# Ana döngü
+# Ana araştırma döngüsü
 # ------------------------------------------------------------------ #
 
 def run_model_research_cycle(ollama_url: str = "http://localhost:11434") -> None:
     """
-    Günlük model araştırma döngüsü.
-    Servis içinden veya CLI'dan çağrılır.
+    Adaptif model araştırma döngüsü.
+    Daha iyi model bulunursa indirir ve geçiş yapar.
+    Sonuç ne olursa olsun record_research_result() çağrılır.
     """
     lang = _detect_user_language()
     ram_gb = _available_ram_gb()
@@ -310,23 +441,21 @@ def run_model_research_cycle(ollama_url: str = "http://localhost:11434") -> None
     current_info = _find_model_info(current_model)
     current_score = _model_score(current_info, lang) if current_info else 5
 
-    # Açık ihtiyaçları da göz önüne al
+    # Mevcut modelin dil skoru düşükse ihtiyaç listesine ekle
     open_needs = get_open_needs()
     needs_better_lang = any(n.get("kind") == "language_quality" for n in open_needs)
-
-    # Mevcut modelin dil skoru düşükse ihtiyaç listesine ekle
     if current_score < 7 or needs_better_lang:
         add_need(
             description=(
-                f"Kullanıcı ağırlıklı '{lang}' dilini kullanıyor. "
-                f"Mevcut model '{current_model}' için skor: {current_score}/10. "
-                "Daha iyi Türkçe/çok dilli model önerilir."
+                f"Kullanıcı dili: '{lang}'. "
+                f"Mevcut model '{current_model}' skoru: {current_score}/10. "
+                "Daha iyi çok dilli model öneriliyor."
             ),
             kind="language_quality",
-            trigger="auto_daily_check",
+            trigger="auto_research",
         )
 
-    # En iyi alternatifi bul
+    # En uygun alternatifi bul
     best: Optional[dict] = None
     best_score = current_score
     local_models = _ollama_local_models(ollama_url)
@@ -335,14 +464,14 @@ def run_model_research_cycle(ollama_url: str = "http://localhost:11434") -> None
         if m["name"] == current_model:
             continue
         if m.get("min_ram_gb", 0) > ram_gb:
-            continue  # RAM yetersiz
+            continue
         score = _model_score(m, lang)
         if score > best_score + _UPGRADE_SCORE_THRESHOLD - 1:
             best_score = score
             best = m
 
     if not best:
-        # Daha iyi model yok
+        record_research_result(found_upgrade=False)
         return
 
     model_name = best["name"]
@@ -352,29 +481,31 @@ def run_model_research_cycle(ollama_url: str = "http://localhost:11434") -> None
     )
 
     if already_local:
-        # Model zaten yüklü — sadece geçiş yap
         _apply_model_switch(model_name, lang, current_model, best)
+        record_research_result(found_upgrade=True)
         return
 
-    # Arka planda indir
     _notify(
         title=f"Model indiriliyor: {model_name}",
         message=(
-            f"'{lang}' dili için daha iyi model bulundu ({best.get('notes', '')}).\n"
+            f"'{lang}' dili için daha iyi model bulundu.\n"
+            f"{best.get('notes', '')}\n"
             f"Arka planda indiriliyor ({best.get('size_gb', '?')} GB)..."
         ),
         kind="info",
     )
 
-    success = _ollama_pull(model_name, ollama_url)
+    success = _ollama_pull(model_name)
     if success:
         _apply_model_switch(model_name, lang, current_model, best)
+        record_research_result(found_upgrade=True)
     else:
         _notify(
             title=f"Model indirilemedi: {model_name}",
-            message="İndirme sırasında hata oluştu. Bir sonraki döngüde tekrar denecek.",
+            message="İndirme sırasında hata oluştu. Adaptif zamanlayıcı ile tekrar denenecek.",
             kind="error",
         )
+        record_research_result(found_upgrade=False)
 
 
 def _apply_model_switch(

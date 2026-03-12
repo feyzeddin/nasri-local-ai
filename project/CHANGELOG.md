@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.24 - 2026-03-12
+
+### Added
+- `model_manager.py`: Adaptif model araştırma zamanlayıcısı — güncelleme bulunamazsa aralık uzar (1g→4g→7g→14g), güncelleme bulununca 1 güne sıfırlanır.
+- `model_manager.py`: `record_research_result()` — araştırma sonucunu ve bir sonraki aralığı `model_research_state.json`'a yazar.
+- `model_manager.py`: `get_next_check_info()` — bir sonraki kontrolün zamanını döner.
+- `model_manager.py`: `_detect_user_language()` artık konum önbelleğinden ülke kodunu okuyarak dili tahmin ediyor (50+ ülke→dil eşleştirmesi).
+- `model_manager.py`: `_available_ram_gb()` artık Linux/macOS/Windows cross-platform.
+- `model_manager.py`: OLLAMA_MODELS listesine `qwen3:4b`, `aya-expanse:8b`, `gemma3:4b` eklendi.
+- `model_manager.py`: `_ollama_pull()` artık timeout yok — model boyutu ne olursa olsun bekler.
+- `service.py`: Sabit 24h interval yerine `should_research_models()` adaptive interval kullanıyor.
+- `install.sh`: Varsayılan model `llama3` → `qwen3:4b` (2.5GB, 119 dil, Türkçe 9/10).
+- `install.sh`: `ollama pull` zaman aşımı yok; başarısız olursa 3 kez 30s arayla tekrar dener.
+
+
 ## 0.3.23 - 2026-03-12
 
 ### Added
