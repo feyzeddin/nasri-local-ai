@@ -129,33 +129,48 @@ def _load_update_manifest(repo: Path) -> dict:
 
 def maybe_update() -> bool:
     repo = install_dir()
+    log = lambda msg: print(f"[nasri/update] {msg}", flush=True)  # noqa: E731
+
+    log(f"Güncelleme kontrol ediliyor... (repo: {repo})")
+
     if not (repo / ".git").exists():
+        log(f"HATA: Git deposu bulunamadı: {repo}")
         _update_state(last_update_result="skip:no-git-repo")
         return False
 
-    rc, _ = _run(["git", "fetch", "origin", "main"], cwd=repo)
+    rc, fetch_out = _run(["git", "fetch", "origin", "main"], cwd=repo)
     if rc != 0:
-        _update_state(last_update_result="error:fetch-failed")
+        log(f"HATA: git fetch başarısız (rc={rc}): {fetch_out[:120]}")
+        _update_state(last_update_result=f"error:fetch-failed:{fetch_out[:80]}")
         return False
 
     rc_local, local_head = _run(["git", "rev-parse", "HEAD"], cwd=repo)
     rc_remote, remote_head = _run(["git", "rev-parse", "origin/main"], cwd=repo)
     if rc_local != 0 or rc_remote != 0:
+        log("HATA: git rev-parse başarısız")
         _update_state(last_update_result="error:rev-parse-failed")
         return False
 
-    if local_head.strip() == remote_head.strip():
+    local_head = local_head.strip()
+    remote_head = remote_head.strip()
+    log(f"Yerel: {local_head[:8]}  Uzak: {remote_head[:8]}")
+
+    if local_head == remote_head:
+        log(f"Zaten güncel ({local_version()})")
         _update_state(
             last_update_result="ok:already-latest",
             installed_version=local_version(),
         )
         return False
 
+    log(f"Yeni commit var, indiriliyor...")
     rc_pull, pull_out = _run(["git", "pull", "--ff-only", "origin", "main"], cwd=repo)
     if rc_pull != 0:
+        log(f"HATA: git pull başarısız: {pull_out[:120]}")
         _update_state(last_update_result=f"error:pull-failed:{pull_out[:120]}")
         return False
 
+    log("Kod indirildi, paketler kuruluyor...")
     _sync_env_from_example(repo)
     manifest = _load_update_manifest(repo)
     deps = manifest.get("dependencies", {}) if isinstance(manifest, dict) else {}
@@ -169,21 +184,27 @@ def maybe_update() -> bool:
 
     ok_req, req_detail = _install_python_requirements(repo, req_path)
     if not ok_req:
+        log(f"HATA: requirements kurulumu başarısız: {req_detail}")
         _update_state(last_update_result=f"error:{req_detail}")
         return False
+    log(f"Requirements: {req_detail}")
 
     for pkg in editable_packages:
         ok_pkg, pkg_detail = _install_editable(repo, pkg)
         if not ok_pkg:
+            log(f"HATA: paket kurulumu başarısız ({pkg}): {pkg_detail}")
             _update_state(last_update_result=f"error:{pkg_detail}")
             return False
+        log(f"Paket kuruldu: {pkg}")
 
     ok_post, post_detail = _run_post_update_commands(repo, post_commands)
     if not ok_post:
+        log(f"HATA: post-update komutları başarısız: {post_detail}")
         _update_state(last_update_result=f"error:{post_detail}")
         return False
 
     new_version = local_version()
+    log(f"Güncelleme tamamlandı: {new_version}")
     _update_state(
         last_update_result="ok:updated",
         installed_version=new_version,

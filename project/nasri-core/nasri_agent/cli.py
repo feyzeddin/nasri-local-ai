@@ -71,31 +71,55 @@ def cmd_chat() -> int:
     return chat_loop()
 
 
-def cmd_update() -> int:
+def cmd_update(argv: list[str] | None = None) -> int:
     import os
     import shutil
-    import json
+    import json as _json
 
-    from .updater import local_version, maybe_update
+    from .updater import local_version, maybe_update, install_dir
     from .config import data_dir, state_file
 
-    print(f"Mevcut surum: {local_version()}")
+    sub = (argv[0] if argv else "").lower()
+
+    # nasri update status — son güncelleme durumunu göster
+    if sub == "status":
+        try:
+            state = _json.loads(state_file().read_text(encoding="utf-8"))
+        except Exception:
+            state = {}
+        print(f"Kurulu sürüm : {state.get('installed_version', local_version())}")
+        print(f"Son kontrol  : {state.get('last_update_check', 'hiç yapılmadı')}")
+        print(f"Son sonuç    : {state.get('last_update_result', 'n/a')}")
+        print(f"Repo dizini  : {install_dir()}")
+        print(f"Git repo     : {'var' if (install_dir() / '.git').exists() else 'YOK — güncelleme çalışmaz!'}")
+        return 0
+
+    # nasri update reset — bir sonraki döngüde güncelleme kontrolünü zorla
+    if sub == "reset":
+        try:
+            path = state_file()
+            current = _json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+            current["last_update_check"] = ""
+            path.write_text(_json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+            print("Güncelleme zamanı sıfırlandı. Servis 30 saniye içinde kontrol edecek.")
+            print("Logları takip etmek için: journalctl -u nasri.service -f")
+        except Exception as e:
+            print(f"Hata: {e}")
+        return 0
+
+    # nasri update — güncellemeyi hemen çalıştır
+    print(f"Mevcut surum : {local_version()}")
+    print(f"Repo         : {install_dir()}")
     print("Guncelleme kontrol ediliyor...")
     updated = maybe_update()
     if updated:
         print(f"Guncelleme tamamlandi. Yeni surum: {local_version()}")
-
-        # Servis döngüsüne yeniden başlatma sinyali gönder.
-        # .restart_flag dosyasını servisteki while döngüsü izler ve
-        # os.execv ile kendini yeniden başlatır — şifre gerekmez.
         try:
             flag = data_dir() / ".restart_flag"
             flag.touch()
-            print("Servis yeniden baslatma sinyali gonderildi (sifre gerekmez).")
+            print("Servis yeniden baslatma sinyali gonderildi.")
         except Exception as e:
             print(f"Restart flag yazılamadı: {e}")
-
-        # Bu process'i de yeni kodu yükleyerek yeniden başlat (watch aç)
         nasri_bin = shutil.which("nasri")
         if nasri_bin:
             os.execv(nasri_bin, [nasri_bin, "watch"])
@@ -104,14 +128,14 @@ def cmd_update() -> int:
             os.execv(sys.executable, [sys.executable, "-m", "nasri_agent", "watch"])
     else:
         try:
-            state = json.loads(state_file().read_text(encoding="utf-8"))
+            state = _json.loads(state_file().read_text(encoding="utf-8"))
             result = state.get("last_update_result", "n/a")
         except Exception:
             result = "n/a"
         if "already-latest" in result:
             print("Zaten en guncel surum.")
         else:
-            print(f"Guncelleme uygulanamadi: {result}")
+            print(f"Sonuç: {result}")
     return 0
 
 
@@ -327,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     if command == "start":
         return cmd_start()
     if command == "update":
-        return cmd_update()
+        return cmd_update(args.rest or [])
     if command == "installservice":
         return cmd_install_service()
     if command == "uninstallservice":
