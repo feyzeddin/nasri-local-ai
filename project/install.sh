@@ -21,7 +21,7 @@ if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     echo ""
     if command -v sudo >/dev/null 2>&1; then
         echo -e "\033[0;34m[nasri]\033[0m sudo ile yeniden başlatılıyor..."
-        exec sudo -E "$0" "$@"
+        exec sudo -E bash "$0" "$@"
     else
         echo -e "\033[0;31m[✗] sudo bulunamadı. Lütfen root olarak çalıştırın: su -c 'bash $0'\033[0m"
         exit 1
