@@ -451,10 +451,16 @@ SSH_CONFIG_FILE="$ACTUAL_HOME/.ssh/config"
 
 # Key yoksa oluştur
 if [ ! -f "$DEPLOY_KEY" ]; then
-    ssh-keygen -t ed25519 -C "nasri@$(hostname)" -f "$DEPLOY_KEY" -N "" -q
+    mkdir -p "$(dirname "$DEPLOY_KEY")"
+    ssh-keygen -t ed25519 -C "nasri@$(hostname)" -f "$DEPLOY_KEY" -N "" || {
+        err "ssh-keygen başarısız oldu!"
+        err "  Hedef: $DEPLOY_KEY"
+        err "  Dizin izinleri: $(ls -la "$(dirname "$DEPLOY_KEY")")"
+        exit 1
+    }
     chmod 600 "$DEPLOY_KEY"
     chmod 644 "$DEPLOY_PUB"
-    ok "Deploy key oluşturuldu"
+    ok "Deploy key oluşturuldu: $DEPLOY_PUB"
 else
     ok "Deploy key mevcut: $DEPLOY_KEY"
 fi
