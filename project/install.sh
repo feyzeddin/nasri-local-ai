@@ -9,6 +9,25 @@
 # =============================================================================
 set -uo pipefail
 
+# =============================================================================
+# ROOT / SUDO KONTROLÜ
+# Kurulum sistem saatini, saat dilimini ve servis dosyalarını değiştirir.
+# Bu işlemler root yetkisi gerektirir. Root değilse sudo ile yeniden başlat.
+# =============================================================================
+if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    echo ""
+    echo -e "\033[1;33m[!] Bu kurulum root yetkisi gerektiriyor.\033[0m"
+    echo -e "\033[1;33m    (Sistem saati, saat dilimi ve servis dosyaları değiştirilecek)\033[0m"
+    echo ""
+    if command -v sudo >/dev/null 2>&1; then
+        echo -e "\033[0;34m[nasri]\033[0m sudo ile yeniden başlatılıyor..."
+        exec sudo -E "$0" "$@"
+    else
+        echo -e "\033[0;31m[✗] sudo bulunamadı. Lütfen root olarak çalıştırın: su -c 'bash $0'\033[0m"
+        exit 1
+    fi
+fi
+
 # --- Renkler ---
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -571,8 +590,24 @@ if command_exists systemctl && [ "$OS" = "Linux" ]; then
     # ama yönetim komutları için yine de kurulur.
     # ----------------------------------------------------------------
     SUDOERS_FILE="/etc/sudoers.d/nasri"
-    SUDOERS_CONTENT="# Nasri — sifresiz servis yonetimi
-${ACTUAL_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nasri.service, /usr/bin/systemctl stop nasri.service, /usr/bin/systemctl restart nasri.service, /usr/bin/systemctl status nasri.service, /bin/systemctl start nasri.service, /bin/systemctl stop nasri.service, /bin/systemctl restart nasri.service, /bin/systemctl status nasri.service"
+    SUDOERS_CONTENT="# Nasri — sifresiz servis yonetimi ve saat senkronu
+${ACTUAL_USER} ALL=(ALL) NOPASSWD: \
+/usr/bin/systemctl start nasri.service, \
+/usr/bin/systemctl stop nasri.service, \
+/usr/bin/systemctl restart nasri.service, \
+/usr/bin/systemctl status nasri.service, \
+/bin/systemctl start nasri.service, \
+/bin/systemctl stop nasri.service, \
+/bin/systemctl restart nasri.service, \
+/bin/systemctl status nasri.service, \
+/usr/bin/timedatectl set-timezone *, \
+/usr/bin/timedatectl set-ntp *, \
+/bin/timedatectl set-timezone *, \
+/bin/timedatectl set-ntp *, \
+/usr/sbin/ntpdate *, \
+/usr/bin/ntpdate *, \
+/usr/sbin/chronyc makestep, \
+/usr/bin/chronyc makestep"
 
     printf '%s\n' "$SUDOERS_CONTENT" > "$SUDOERS_FILE" 2>/dev/null || \
         printf '%s\n' "$SUDOERS_CONTENT" | sudo tee "$SUDOERS_FILE" > /dev/null 2>&1 || true
@@ -604,6 +639,52 @@ ${ACTUAL_USER} ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nasri.service, /usr/
     fi
 elif [ "$OS" = "Darwin" ]; then
     "$NASRI_VENV/bin/nasri" install-service
+fi
+
+# =============================================================================
+# SAAT DİLİMİ VE SİSTEM SAATİ DOĞRULAMA
+# Nasri servisi başladıktan sonra konum tespiti + NTP senkronunu çalıştır
+# =============================================================================
+step "Saat dilimi ve sistem saati ayarlanıyor"
+
+# Servise birkaç saniye konum tespiti yapması için zaman ver
+sleep 5
+
+# Saat dilimini kontrol et ve raporla
+if command -v timedatectl >/dev/null 2>&1; then
+    TZ_CURRENT=$(timedatectl show --property=Timezone --value 2>/dev/null || timedatectl | grep "Time zone" | awk '{print $3}' 2>/dev/null || echo "bilinmiyor")
+    NTP_SYNC=$(timedatectl show --property=NTPSynchronized --value 2>/dev/null || echo "unknown")
+    SYS_TIME=$(date '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || echo "bilinmiyor")
+    echo ""
+    echo -e "  Saat dilimi: ${CYAN}${TZ_CURRENT}${NC}"
+    echo -e "  Sistem saati: ${CYAN}${SYS_TIME}${NC}"
+    if [ "$NTP_SYNC" = "yes" ]; then
+        ok "NTP senkronu aktif"
+    else
+        warn "NTP henüz senkronize olmadı (servis arka planda devam ediyor)"
+    fi
+
+    # Eğer saat dilimi hâlâ UTC ise Nasri'nin tespitini bekle ve tekrar dene
+    if [ "$TZ_CURRENT" = "UTC" ] || [ "$TZ_CURRENT" = "Etc/UTC" ]; then
+        log "Saat dilimi UTC, konum tespiti tamamlanana kadar 10 saniye bekleniyor..."
+        sleep 10
+        # Nasri'nin location.json'ından timezone oku ve uygula
+        LOCATION_JSON="$NASRI_DATA_DIR/location.json"
+        if [ -f "$LOCATION_JSON" ]; then
+            DETECTED_TZ=$(python3 -c "import json; d=json.load(open('$LOCATION_JSON')); print(d.get('timezone',''))" 2>/dev/null || echo "")
+            if [ -n "$DETECTED_TZ" ] && [ "$DETECTED_TZ" != "UTC" ]; then
+                timedatectl set-timezone "$DETECTED_TZ" && \
+                    ok "Saat dilimi güncellendi: $DETECTED_TZ" || \
+                    warn "Saat dilimi ayarlanamadı: $DETECTED_TZ"
+                timedatectl set-ntp true 2>/dev/null || true
+            fi
+        fi
+        TZ_FINAL=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "bilinmiyor")
+        SYS_TIME_FINAL=$(date '+%Y-%m-%d %H:%M:%S %Z')
+        echo -e "  Son durum → Saat dilimi: ${CYAN}${TZ_FINAL}${NC}  Saat: ${CYAN}${SYS_TIME_FINAL}${NC}"
+    fi
+else
+    ok "Sistem saati: $(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
 fi
 
 # =============================================================================

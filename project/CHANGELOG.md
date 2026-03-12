@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.23 - 2026-03-12
+
+### Added
+- `install.sh`: Root/sudo zorunluluğu — root değilse `exec sudo -E` ile otomatik yeniden başlatır; sudo yoksa kullanıcıyı yönlendirir.
+- `install.sh`: Sudoers kuralına `timedatectl set-timezone/set-ntp`, `ntpdate`, `chronyc makestep` eklendi (şifresiz saat senkronu).
+- `install.sh`: Kurulum sonu "Saat dilimi ve sistem saati doğrulama" adımı — saat dilimi UTC kalırsa Nasri'nin konum tespiti tamamlanana kadar bekler ve otomatik uygular.
+- `device_auth.py`: `_sudoers_content()` aynı zaman senkronu komutlarını içerecek şekilde güncellendi.
+- `time_sync.py`: `_sudo_run()` yardımcı fonksiyonu — her komutu önce doğrudan, başarısız olursa `sudo -n` ile dener.
+- `time_sync.py`: `_try_fix_timezone()` artık parametrik (IANA timezone adı alır), cross-platform (Linux/macOS/Windows), 50+ timezone için IANA→Windows eşleştirme tablosu eklendi.
+- `location.py`: `_apply_timezone()` artık OS sistem saat dilimini de `_try_fix_timezone()` ile güncelliyor.
+
+### Changed
+- `time_sync.py`: `_try_fix_system_clock()` artık `_sudo_run()` kullanıyor — `timedatectl`, `ntpdate`, `chronyc` komutları root olmadan da denenebiliyor.
+- `time_sync.py`: `ensure_time_accurate()` UTC tespitinde konum önbelleğinden timezone okuyarak hardcoded "Europe/Istanbul" yerine gerçek konuma göre düzeltiyor.
+
+
 ## 0.2.0 - 2026-03-09
 
 ### Added

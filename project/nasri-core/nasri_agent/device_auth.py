@@ -123,6 +123,7 @@ def sign_data(data: bytes) -> Optional[str]:
 
 def _sudoers_content(user: str) -> str:
     cmds = ", ".join([
+        # Servis yönetimi
         "/usr/bin/systemctl start nasri.service",
         "/usr/bin/systemctl stop nasri.service",
         "/usr/bin/systemctl restart nasri.service",
@@ -131,8 +132,17 @@ def _sudoers_content(user: str) -> str:
         "/bin/systemctl stop nasri.service",
         "/bin/systemctl restart nasri.service",
         "/bin/systemctl status nasri.service",
+        # Sistem saat dilimi ve NTP senkronu
+        "/usr/bin/timedatectl set-timezone *",
+        "/usr/bin/timedatectl set-ntp *",
+        "/bin/timedatectl set-timezone *",
+        "/bin/timedatectl set-ntp *",
+        "/usr/sbin/ntpdate *",
+        "/usr/bin/ntpdate *",
+        "/usr/sbin/chronyc makestep",
+        "/usr/bin/chronyc makestep",
     ])
-    return f"# Nasri — sifresiz servis yonetimi\n{user} ALL=(ALL) NOPASSWD: {cmds}\n"
+    return f"# Nasri — sifresiz servis yonetimi ve saat senkronu\n{user} ALL=(ALL) NOPASSWD: {cmds}\n"
 
 
 def setup_sudoers(user: str) -> tuple[bool, str]:

@@ -221,38 +221,43 @@ def check_ntp_sync() -> bool:
     return True
 
 
+def _sudo_run(args: list[str], timeout: int = 30) -> bool:
+    """Komutu önce doğrudan, başarısız olursa sudo -n ile çalıştırır."""
+    try:
+        r = subprocess.run(args, capture_output=True, timeout=timeout)
+        if r.returncode == 0:
+            return True
+    except Exception:
+        pass
+    if shutil.which("sudo"):
+        try:
+            r2 = subprocess.run(["sudo", "-n"] + args, capture_output=True, timeout=timeout)
+            return r2.returncode == 0
+        except Exception:
+            pass
+    return False
+
+
 def _try_fix_system_clock() -> bool:
     """
-    Sistem saatini düzeltmeyi dener. sudo gerektiren komutlar başarısız
-    olabilir; bu durumda NTP offset ile devam edilir.
+    Sistem saatini NTP ile senkronize etmeyi dener.
+    Her komut önce doğrudan, başarısız olursa sudo -n ile denenir.
     """
     sys = platform.system()
     try:
         if sys == "Linux":
             if shutil.which("timedatectl"):
-                subprocess.run(
-                    ["timedatectl", "set-ntp", "true"],
-                    timeout=10, capture_output=True,
-                )
+                _sudo_run(["timedatectl", "set-ntp", "true"], timeout=10)
                 if shutil.which("chronyc"):
-                    subprocess.run(
-                        ["chronyc", "makestep"],
-                        timeout=10, capture_output=True,
-                    )
+                    _sudo_run(["chronyc", "makestep"], timeout=10)
+                elif shutil.which("ntpdate"):
+                    _sudo_run(["ntpdate", "-u", "pool.ntp.org"], timeout=30)
                 return True
             if shutil.which("ntpdate"):
-                r = subprocess.run(
-                    ["ntpdate", "-u", "pool.ntp.org"],
-                    timeout=30, capture_output=True,
-                )
-                return r.returncode == 0
+                return _sudo_run(["ntpdate", "-u", "pool.ntp.org"], timeout=30)
         elif sys == "Darwin":
             if shutil.which("sntp"):
-                r = subprocess.run(
-                    ["sntp", "-sS", "pool.ntp.org"],
-                    timeout=30, capture_output=True,
-                )
-                return r.returncode == 0
+                return _sudo_run(["sntp", "-sS", "pool.ntp.org"], timeout=30)
         elif sys == "Windows":
             r = subprocess.run(
                 ["w32tm", "/resync", "/force"],
@@ -268,20 +273,126 @@ def _try_fix_system_clock() -> bool:
 # Başlangıç + periyodik kontrol (service.py tarafından çağrılır)
 # ------------------------------------------------------------------ #
 
-def _try_fix_timezone() -> bool:
+# IANA timezone → Windows timezone adı eşleştirmesi
+_IANA_TO_WINDOWS: dict[str, str] = {
+    "Europe/Istanbul":        "Turkey Standard Time",
+    "Europe/London":          "GMT Standard Time",
+    "Europe/Paris":           "Romance Standard Time",
+    "Europe/Berlin":          "W. Europe Standard Time",
+    "Europe/Amsterdam":       "W. Europe Standard Time",
+    "Europe/Rome":            "W. Europe Standard Time",
+    "Europe/Madrid":          "Romance Standard Time",
+    "Europe/Warsaw":          "Central European Standard Time",
+    "Europe/Athens":          "GTB Standard Time",
+    "Europe/Bucharest":       "GTB Standard Time",
+    "Europe/Helsinki":        "FLE Standard Time",
+    "Europe/Kyiv":            "FLE Standard Time",
+    "Europe/Moscow":          "Russian Standard Time",
+    "America/New_York":       "Eastern Standard Time",
+    "America/Chicago":        "Central Standard Time",
+    "America/Denver":         "Mountain Standard Time",
+    "America/Los_Angeles":    "Pacific Standard Time",
+    "America/Sao_Paulo":      "E. South America Standard Time",
+    "America/Argentina/Buenos_Aires": "Argentina Standard Time",
+    "America/Mexico_City":    "Central Standard Time (Mexico)",
+    "America/Bogota":         "SA Pacific Standard Time",
+    "Asia/Tokyo":             "Tokyo Standard Time",
+    "Asia/Shanghai":          "China Standard Time",
+    "Asia/Hong_Kong":         "China Standard Time",
+    "Asia/Singapore":         "Singapore Standard Time",
+    "Asia/Kolkata":           "India Standard Time",
+    "Asia/Dubai":             "Arabian Standard Time",
+    "Asia/Riyadh":            "Arab Standard Time",
+    "Asia/Tehran":            "Iran Standard Time",
+    "Asia/Baku":              "Azerbaijan Standard Time",
+    "Asia/Tbilisi":           "Georgian Standard Time",
+    "Asia/Yerevan":           "Caucasus Standard Time",
+    "Asia/Karachi":           "Pakistan Standard Time",
+    "Asia/Dhaka":             "Bangladesh Standard Time",
+    "Asia/Bangkok":           "SE Asia Standard Time",
+    "Asia/Jakarta":           "SE Asia Standard Time",
+    "Asia/Seoul":             "Korea Standard Time",
+    "Asia/Taipei":            "Taipei Standard Time",
+    "Africa/Cairo":           "Egypt Standard Time",
+    "Africa/Johannesburg":    "South Africa Standard Time",
+    "Africa/Lagos":           "W. Central Africa Standard Time",
+    "Africa/Nairobi":         "E. Africa Standard Time",
+    "Australia/Sydney":       "AUS Eastern Standard Time",
+    "Australia/Melbourne":    "AUS Eastern Standard Time",
+    "Australia/Perth":        "W. Australia Standard Time",
+    "Pacific/Auckland":       "New Zealand Standard Time",
+    "Pacific/Honolulu":       "Hawaiian Standard Time",
+    "UTC":                    "UTC",
+}
+
+
+def _try_fix_timezone(timezone: str) -> bool:
     """
-    Sistem saat dilimini Europe/Istanbul olarak ayarlamayı dener.
-    timedatectl ile dener; sudo gerektirirse başarısız olabilir.
+    Sistem saat dilimini verilen IANA timezone adına ayarlamayı dener.
+
+    Linux  : timedatectl set-timezone (root/sudo -n ile dener)
+             Başarısız olursa /etc/localtime symlink'i dener.
+    macOS  : systemsetup -settimezone (sudo -n ile dener)
+    Windows: tzutil /s <Windows-tz-adı>
+
+    Başarısız olursa False döner — çağıran NTP offset ile devam eder.
     """
-    if platform.system() != "Linux":
-        return False
-    if not shutil.which("timedatectl"):
-        return False
-    r = subprocess.run(
-        ["timedatectl", "set-timezone", "Europe/Istanbul"],
-        capture_output=True, timeout=10,
-    )
-    return r.returncode == 0
+    sys_name = platform.system()
+    try:
+        if sys_name == "Linux":
+            if shutil.which("timedatectl"):
+                # Önce doğrudan dene (root ise çalışır)
+                r = subprocess.run(
+                    ["timedatectl", "set-timezone", timezone],
+                    capture_output=True, timeout=10,
+                )
+                if r.returncode == 0:
+                    return True
+                # sudo -n ile dene (şifresiz sudo ayarlıysa çalışır)
+                if shutil.which("sudo"):
+                    r2 = subprocess.run(
+                        ["sudo", "-n", "timedatectl", "set-timezone", timezone],
+                        capture_output=True, timeout=10,
+                    )
+                    if r2.returncode == 0:
+                        return True
+            # timedatectl yoksa veya başarısız olduysa: /etc/localtime symlink'i dene
+            zone_file = Path(f"/usr/share/zoneinfo/{timezone}")
+            if zone_file.exists():
+                localtime = Path("/etc/localtime")
+                localtime.unlink(missing_ok=True)
+                localtime.symlink_to(zone_file)
+                Path("/etc/timezone").write_text(timezone + "\n", encoding="utf-8")
+                return True
+
+        elif sys_name == "Darwin":
+            if shutil.which("systemsetup"):
+                r = subprocess.run(
+                    ["systemsetup", "-settimezone", timezone],
+                    capture_output=True, timeout=10,
+                )
+                if r.returncode == 0:
+                    return True
+                if shutil.which("sudo"):
+                    r2 = subprocess.run(
+                        ["sudo", "-n", "systemsetup", "-settimezone", timezone],
+                        capture_output=True, timeout=10,
+                    )
+                    if r2.returncode == 0:
+                        return True
+
+        elif sys_name == "Windows":
+            win_tz = _IANA_TO_WINDOWS.get(timezone)
+            if win_tz and shutil.which("tzutil"):
+                r = subprocess.run(
+                    ["tzutil", "/s", win_tz],
+                    capture_output=True, timeout=10,
+                )
+                return r.returncode == 0
+
+    except Exception:
+        pass
+    return False
 
 
 def ensure_time_accurate(verbose: bool = True) -> None:
@@ -306,11 +417,19 @@ def ensure_time_accurate(verbose: bool = True) -> None:
     nasri_tz = os.getenv("NASRI_TIMEZONE", "").strip()
     if sys_tz in ("UTC", "Etc/UTC", "Universal") and not nasri_tz:
         log("UYARI: Sistem saat dilimi UTC, NASRI_TIMEZONE ayarlı değil.")
-        log("Konum tespiti servise bırakıldı.")
-        # timedatectl ile düzeltmeyi de dene
-        fixed_tz = _try_fix_timezone()
+        # Konum önbelleğinden timezone al, yoksa Europe/Istanbul fallback
+        detected_tz = ""
+        try:
+            from .location import _load_cached as _loc_cache
+            detected_tz = _loc_cache().get("timezone", "")
+        except Exception:
+            pass
+        fix_tz = detected_tz or "Europe/Istanbul"
+        fixed_tz = _try_fix_timezone(fix_tz)
         if fixed_tz:
-            log("timedatectl ile Europe/Istanbul ayarlandı.")
+            log(f"Sistem saat dilimi ayarlandı: {fix_tz}")
+        else:
+            log(f"Sistem saat dilimi ayarlanamadı (root/sudo gerekebilir): {fix_tz}")
 
     # NTP offset'i ölç
     log("NTP sunucusuna bağlanılıyor...")

@@ -326,11 +326,15 @@ def run_location_check(force: bool = False, verbose: bool = True) -> dict | None
 
 
 def _apply_timezone(timezone: str, log: Any) -> None:
-    """Timezone'u .env'e yazar ve servis restart flag'i bırakır."""
+    """
+    Timezone'u üç katmanda uygular:
+    1. .env dosyasına NASRI_TIMEZONE yazar (servis yeniden başlatılır)
+    2. Sistem saat dilimini OS düzeyinde ayarlamayı dener (root/sudo gerekebilir)
+    3. Başarısız olursa os.environ ile süreç düzeyinde uygular
+    """
     written = _upsert_env("NASRI_TIMEZONE", timezone)
     if written:
         log(f".env güncellendi: NASRI_TIMEZONE={timezone}")
-        # Servis döngüsüne yeniden başlatma sinyali gönder
         try:
             flag = data_dir() / ".restart_flag"
             flag.touch()
@@ -340,6 +344,16 @@ def _apply_timezone(timezone: str, log: Any) -> None:
     else:
         log(f".env bulunamadı, NASRI_TIMEZONE={timezone} uygulanamadı (os.environ kullanılıyor).")
         os.environ["NASRI_TIMEZONE"] = timezone
+
+    # OS sistem saat dilimini de güncelle
+    try:
+        from .time_sync import _try_fix_timezone
+        if _try_fix_timezone(timezone):
+            log(f"Sistem saat dilimi güncellendi: {timezone}")
+        else:
+            log(f"Sistem saat dilimi güncellenemedi (root/sudo gerekebilir). NASRI_TIMEZONE={timezone} kullanılacak.")
+    except Exception as exc:
+        log(f"Sistem saat dilimi güncelleme hatası: {exc}")
 
 
 def get_location_summary() -> str:
