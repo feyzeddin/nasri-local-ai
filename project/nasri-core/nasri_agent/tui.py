@@ -36,7 +36,8 @@ except ImportError:
     _TEXTUAL_OK = False
     # textual yoksa sınıf tanımlarını çöktürmemek için stub'lar
     class App:  # type: ignore[no-redef]
-        pass
+        def __class_getitem__(cls, item: object) -> type:
+            return cls
     class ComposeResult:  # type: ignore[no-redef]
         pass
     class Binding:  # type: ignore[no-redef]
