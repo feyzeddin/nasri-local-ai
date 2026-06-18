@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+logs/*.log
+config/secrets.json
+.env
+e-Paper/
+epaper_test.py
