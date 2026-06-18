@@ -15,7 +15,6 @@ LOGS_DIR = ROOT / "logs"
 # Dosyalar
 CONFIG_FILE = CONFIG_DIR / "config.json"      # genel ayarlar (git'te olabilir)
 SECRETS_FILE = CONFIG_DIR / "secrets.json"    # API anahtarları (git'te ASLA)
-SOUL_FILE = CONFIG_DIR / "soul.json"          # kişilik + tercih katmanları
 LOG_FILE = LOGS_DIR / "nasri.log"
 
 # Klasörlerin var olduğundan emin ol (yoksa oluştur)
@@ -23,3 +22,6 @@ def ensure_dirs() -> None:
     """Gerekli klasörleri oluşturur. Servis başlangıcında çağrılır."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+DIN_INSAN_FILE = CONFIG_DIR / "din_insan.json"
+SOUL_FILE = CONFIG_DIR / "soul.json"

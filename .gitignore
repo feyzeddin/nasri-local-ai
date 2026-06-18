@@ -7,3 +7,4 @@ config/secrets.json
 .env
 e-Paper/
 epaper_test.py
+config/soul.json
