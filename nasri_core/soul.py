@@ -13,6 +13,7 @@ import json
 import uuid
 import hashlib
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from nasri_core import paths, config
 from nasri_core.logger import get_logger
 
@@ -87,6 +88,24 @@ def cekirdek_muhru() -> str:
     return ozet
 
 
+
+def _guncel_zaman_metni() -> str:
+    """O anki tarih/saati Türkçe, okunabilir biçimde döndürür."""
+    cfg = config.yukle()
+    try:
+        simdi = datetime.now(ZoneInfo(cfg.get("zaman_dilimi", "Europe/Istanbul")))
+    except Exception:
+        simdi = datetime.now()
+    gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+             "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+    gun_adi = gunler[simdi.weekday()]
+    ay_adi = aylar[simdi.month - 1]
+    return (f"Şu anki tarih ve saat: {gun_adi}, {simdi.day} {ay_adi} {simdi.year}, "
+            f"{simdi.strftime('%H:%M')} ({cfg.get('zaman_dilimi', 'Europe/Istanbul')}). "
+            f"Bu bilgi sistem saatinden gelir ve günceldir; zaman sorularında bunu kullan.")
+
+
 def sistem_promptu_olustur() -> str:
     """Üç katmanı birleştirip LLM'e gönderilecek sistem promptunu üretir."""
     cfg = config.yukle()
@@ -96,7 +115,10 @@ def sistem_promptu_olustur() -> str:
     deger_ref = _deger_referansi_yukle()
     kisilik = kimlik.get("kisilik", {})
 
-    prompt = f"""{ETIK_CEKIRDEK}
+    zaman = _guncel_zaman_metni()
+    prompt = f"""{zaman}
+
+{ETIK_CEKIRDEK}
 {deger_ref}
 
 --- Kişilik ---

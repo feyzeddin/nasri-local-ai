@@ -2,7 +2,7 @@
   "dil": "tr",
   "kullanici_adi": "Feyzeddin",
   "llm_saglayici": "ollama",
-  "llm_model": "aya-expanse:8b",
+  "llm_model": "gemma3:4b",
   "ollama_url": "http://localhost:11434",
   "yanit_uzunlugu": "normal",
   "zaman_dilimi": "Europe/Istanbul"
