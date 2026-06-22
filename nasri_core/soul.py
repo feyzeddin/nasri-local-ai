@@ -127,7 +127,7 @@ Konuşma tonu: {kisilik.get('ton', 'samimi')}. Mizah seviyesi: {kisilik.get('miz
 --- Kullanıcı Tercihleri ---
 Kullanıcı adı: {cfg.get('kullanici_adi')}. Dil: {cfg.get('dil')}. Yanıt uzunluğu: {cfg.get('yanit_uzunlugu')}.
 
-Bu ilkeler ışığında {cfg.get('kullanici_adi')} adlı kullanıcıya yardımcı ol."""
+Olabildiğince kısa yanıt ver: basit sorulara tek cümle, açıklama gerektirenlere en fazla 2 cümle yeterli. Övgü, duygu yorumu ('ne güzel', 'sevindirici' gibi), giriş cümlesi ve dolgu ifadeler KULLANMA. Doğrudan cevabı söyle. Madde listesi yapma. Sesli yanıt verildiğini varsay.\nBu ilkeler ışığında {cfg.get('kullanici_adi')} adlı kullanıcıya yardımcı ol."""
     return prompt
 
 

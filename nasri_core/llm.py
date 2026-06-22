@@ -41,12 +41,12 @@ def yanit_al(kullanici_mesaji: str, gecmis: list | None = None) -> str:
 
     log.debug("Ollama'ya istek: model=%s, mesaj_sayisi=%d", model, len(mesajlar))
     try:
-        cevap = requests.post(url, json=govde, timeout=120)
+        cevap = requests.post(url, json=govde, timeout=180)
         cevap.raise_for_status()
     except requests.exceptions.ConnectionError:
         raise OllamaHatasi("Ollama'ya baglanilamadi. Servis calisiyor mu? (systemctl status ollama)")
     except requests.exceptions.Timeout:
-        raise OllamaHatasi("Ollama 120 saniyede yanit vermedi (model cok yavas olabilir).")
+        raise OllamaHatasi("Ollama 180 saniyede yanit vermedi (model cok yavas olabilir).")
     except requests.exceptions.HTTPError as e:
         raise OllamaHatasi(f"Ollama HTTP hatasi: {e}")
 
