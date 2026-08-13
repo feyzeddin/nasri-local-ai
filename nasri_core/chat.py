@@ -9,7 +9,9 @@ from nasri_core.logger import get_logger
 
 log = get_logger("nasri.chat")
 
-MAKS_TUR = 10   # bellekte tutulacak en fazla konuşma turu (kullanıcı+asistan çifti)
+# Sesli sohbette her tur girdi tokenlarina eklenir ve dogrudan gecikmeye
+# yansir (Pi 5'te ~28 tok/s). 4 tur baglam icin yeterli, hiz icin gerekli.
+MAKS_TUR = 4    # bellekte tutulacak en fazla konuşma turu (kullanıcı+asistan çifti)
 
 
 class Sohbet:

@@ -18,6 +18,7 @@ from nasri_core import paths, config
 from nasri_core.logger import get_logger
 
 log = get_logger("nasri.soul")
+_minimal_uyarildi = False
 
 # ── KATMAN 1: ETİK ÇEKİRDEK (şimdilik kodda sabit) ──────────────────────
 ETIK_CEKIRDEK = """Ben Nasri'yim. Aşağıdaki ilkeler benim değiştirilemez etik çekirdeğimdir:
@@ -39,6 +40,18 @@ ETIK_CEKIRDEK = """Ben Nasri'yim. Aşağıdaki ilkeler benim değiştirilemez et
 8. Kimlik: Ben Nasri'yim, bir yapay zeka asistanıyım. İnsan olduğumu iddia etmem. Kullanıcıyla onun dilinde, samimi ama saygılı konuşurum.
 
 9. İnsanî ve İslamî değerler: İnsanî ve İslamî ilkeleri gözetirim. Bu konudaki değerlerim için 'Din ve İnsan Referans İlkeleri' belgesine başvururum. Dinî bilgi ve hükümlerde kendi başıma içerik üretmem veya yorum geliştirmem; bu içeriği yalnızca güvenilir merkezî kaynaktan alırım. Referans belgede bulunmayan dinî konularda hüküm vermekten kaçınır, kullanıcıyı güvenilir kaynaklara yönlendiririm."""
+
+
+# ── MİNİMAL KİMLİK ────────────────────────────────────────────────────
+# GEÇİCİ: config.json'da "soul_modu": "minimal" iken LLM'e yalnızca bu
+# gider. Etik çekirdek ve değer referansı DEVRE DIŞI DEĞİL, sadece
+# prompta eklenmiyor — hız çalışması (F1-23) bitince "tam"a dönülecek.
+# Sebep: 985 tokenlik prompt Pi 5'te her turda ~22 saniye işleniyordu.
+MINIMAL_KIMLIK = """Adım nasri (her zaman küçük harfle yazılır).
+Adım sorulduğunda "Ben nasri'yim" derim. Bir yapay zeka asistanıyım,
+insan olduğumu iddia etmem.
+Bilmediğimde 'bilmiyorum' derim, bilgi uydurmam.
+Geri alınamaz işlemler (silme, gönderme, harcama) için önce onay isterim."""
 
 
 def _deger_referansi_yukle() -> str:
@@ -89,7 +102,7 @@ def cekirdek_muhru() -> str:
 
 
 
-def _guncel_zaman_metni() -> str:
+def guncel_zaman_metni() -> str:
     """O anki tarih/saati Türkçe, okunabilir biçimde döndürür."""
     cfg = config.yukle()
     try:
@@ -110,13 +123,28 @@ def sistem_promptu_olustur() -> str:
     """Üç katmanı birleştirip LLM'e gönderilecek sistem promptunu üretir."""
     cfg = config.yukle()
     kimlik = _cihaz_kimligi_al()
-    cekirdek_muhru()  # gevşek mod: hesapla ve logla
+    cekirdek_muhru()  # mühür her modda hesaplanır (bütünlük kaydı sürer)
+
+    # Minimal mod: değer katmanları prompta eklenmez (bkz. MINIMAL_KIMLIK)
+    if cfg.get("soul_modu", "tam") == "minimal":
+        global _minimal_uyarildi
+        if not _minimal_uyarildi:      # her istekte tekrarlamasin
+            log.warning("SOUL MINIMAL MOD — etik cekirdek ve deger referansi "
+                        "prompta EKLENMIYOR. Tam mod: config.json soul_modu=tam")
+            _minimal_uyarildi = True
+        return (
+            f"{MINIMAL_KIMLIK}\n"
+            f"Kullanıcı adı: {cfg.get('kullanici_adi')}. Dil: {cfg.get('dil')}.\n"
+            "Çok kısa yanıt ver: basit sorulara tek cümle, en fazla iki cümle. "
+            "Giriş cümlesi, övgü, duygu yorumu ve dolgu ifade kullanma. "
+            "Madde listesi yapma. Yanıtın sesli okunacağını varsay."
+        )
+
 
     deger_ref = _deger_referansi_yukle()
     kisilik = kimlik.get("kisilik", {})
 
-    zaman = _guncel_zaman_metni()
-    prompt = f"""{zaman}
+    prompt = f"""
 
 {ETIK_CEKIRDEK}
 {deger_ref}

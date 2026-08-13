@@ -14,6 +14,9 @@ log = get_logger("nasri.tts")
 # Piper'ın açılışta ürettiği zararsız GPU/drm uyarılarını bastır
 os.environ.setdefault("ORT_LOGGING_LEVEL", "3")
 
+# ALSA varsayilani bu sistemde bozuk (asym); cikis aygiti da acikca verilir.
+VARSAYILAN_CIKIS = "plughw:nasrispk"
+
 _voice = None  # yüklü PiperVoice (bellekte tutulur)
 
 
@@ -72,8 +75,10 @@ def konus(metin: str) -> None:
 
     # aplay'i ham 16-bit mono akış için aç; Piper parçalarını borudan besle
     try:
+        cikis = cfg.get("ses_cikis_aygiti", VARSAYILAN_CIKIS)
         aplay = subprocess.Popen(
-            ["aplay", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-q", "-"],
+            ["aplay", "-D", cikis, "-r", "22050", "-f", "S16_LE",
+             "-t", "raw", "-q", "-"],
             stdin=subprocess.PIPE,
         )
     except FileNotFoundError:
@@ -91,6 +96,11 @@ def konus(metin: str) -> None:
             aplay.terminate()
 
     log.info("Seslendirme tamam.")
+
+
+def hazirla() -> None:
+    """Ses modelini önceden belleğe yükler (ilk konuşmadaki gecikmeyi önler)."""
+    _sesi_yukle()
 
 
 # Doğrudan çalıştırılırsa: hızlı test
