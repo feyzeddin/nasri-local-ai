@@ -8,3 +8,4 @@ config/secrets.json
 e-Paper/
 epaper_test.py
 config/soul.json
+voices/
