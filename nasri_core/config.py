@@ -18,6 +18,9 @@ DEFAULTS = {
     "ollama_url": "http://localhost:11434",
     "yanit_uzunlugu": "normal",       # kisa | normal | detayli
     "zaman_dilimi": "Europe/Istanbul",
+    "tts_model": "tr_TR-dfki-medium",
+    "tts_hiz": 1.0,
+    "tts_ses_seviyesi": 1.0,
 }
 
 

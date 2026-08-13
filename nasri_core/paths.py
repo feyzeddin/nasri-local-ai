@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # Ana klasörler
 CONFIG_DIR = ROOT / "config"
 LOGS_DIR = ROOT / "logs"
+VOICES_DIR = ROOT / "voices"      # Piper ses modelleri (.onnx)
 
 # Dosyalar
 CONFIG_FILE = CONFIG_DIR / "config.json"      # genel ayarlar (git'te olabilir)
@@ -22,6 +23,7 @@ def ensure_dirs() -> None:
     """Gerekli klasörleri oluşturur. Servis başlangıcında çağrılır."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
 DIN_INSAN_FILE = CONFIG_DIR / "din_insan.json"
 SOUL_FILE = CONFIG_DIR / "soul.json"
