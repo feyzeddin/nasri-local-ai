@@ -140,7 +140,8 @@ def sistem_promptu_olustur() -> str:
             f"Kullanıcı adı: {cfg.get('kullanici_adi')}. Dil: {cfg.get('dil')}.\n"
             "Çok kısa yanıt ver: basit sorulara tek cümle, en fazla iki cümle. "
             "Giriş cümlesi, övgü, duygu yorumu ve dolgu ifade kullanma. "
-            "Madde listesi yapma. Yanıtın sesli okunacağını varsay."
+            "Madde listesi yapma. Parantez içinde not, uyarı veya "
+            "açıklama ekleme. Yanıtın sesli okunacağını varsay."
         )
 
 
