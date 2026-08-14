@@ -174,12 +174,15 @@ def esik_belirle(ayar: dict) -> float:
     return esik
 
 
-def dinle_vad(ayar: dict, sonsuz_bekle: bool = False) -> str | None:
+def dinle_vad(ayar: dict, sonsuz_bekle: bool = False,
+              hazir_geri_cagirma=None) -> str | None:
     """
     Mikrofonu dinler; konuşma başlayınca kaydeder, sessizlik olunca durur.
 
     sonsuz_bekle=True ise konuşma başlayana kadar süresiz bekler
     (--surekli modu). False ise vad_baslangic_bekleme sonunda None döner.
+    hazir_geri_cagirma: mikrofondan ilk veri geldiğinde çağrılır — arecord'un
+    açılması ~250ms sürüyor ve o aralıkta konuşulursa ilk hece kaçıyor.
 
     Dönüş: WAV dosya yolu, ya da konuşma algılanmadıysa None.
     """
@@ -206,6 +209,8 @@ def dinle_vad(ayar: dict, sonsuz_bekle: bool = False) -> str | None:
             if not parca or len(parca) < PARCA_BAYT:
                 break
             okunan_parca += 1
+            if okunan_parca == 1 and hazir_geri_cagirma:
+                hazir_geri_cagirma()      # mikrofon gerçekten açıldı
             seviye = _rms(parca)
 
             if not konusma_basladi:
@@ -252,6 +257,44 @@ def dinle_vad(ayar: dict, sonsuz_bekle: bool = False) -> str | None:
     return _wav_yaz(bytes(toplanan))
 
 
+# Cümle sonu sayılan işaretler. Akışta bunlardan biri görülünce parça
+# seslendirmeye gönderilir — böylece ses, yanıtın tamamı beklenmeden başlar.
+CUMLE_SONU = ".!?…\n"
+
+
+def _kesim_bul(metin: str) -> int | None:
+    """Metindeki ilk cümle sonu konumunu döndürür (yoksa None)."""
+    for i, karakter in enumerate(metin):
+        if karakter not in CUMLE_SONU:
+            continue
+        # "14.46" gibi sayı/nokta birleşimlerini bölme
+        if karakter == "." and i + 1 < len(metin) and metin[i + 1].isdigit():
+            continue
+        return i
+    return None
+
+
+def cumlelere_bol(parcalar):
+    """
+    LLM'den gelen metin parçalarını cümlelere böler (generator).
+    Amaç ilk cümleyi mümkün olan en kısa sürede çıkarmak: seslendirme
+    böylece üretim sürerken başlayabilir.
+    """
+    tampon = ""
+    for parca in parcalar:
+        tampon += parca
+        while True:
+            kesim = _kesim_bul(tampon)
+            if kesim is None:
+                break
+            cumle = tampon[:kesim + 1].strip()
+            tampon = tampon[kesim + 1:]
+            if cumle:
+                yield cumle
+    if tampon.strip():
+        yield tampon.strip()
+
+
 def _durum(ekran, durum: str) -> None:
     """Ekran varsa durumu yazar. Ekran hatası döngüyü durdurmaz."""
     if ekran is None:
@@ -263,7 +306,11 @@ def _durum(ekran, durum: str) -> None:
 
 
 def _sureleri_yazdir(sureler: dict) -> None:
-    """Aşama sürelerini tek satırda gösterir (F1-23 ölçümü)."""
+    """
+    Aşama sürelerini tek satırda gösterir (F1-23 ölçümü).
+    'düşünme' = konuşmaya başlayana kadar geçen bekleme; kullanıcının
+    algıladığı gecikme budur, asıl iyileştirilmesi gereken sayı.
+    """
     parcalar = [f"{ad} {sn:.1f}s" for ad, sn in sureler.items()]
     toplam = sum(sureler.values())
     satir = "  ⏱  " + " | ".join(parcalar) + f" | TOPLAM {toplam:.1f}s"
@@ -300,10 +347,11 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
 
     # 1) Dinle
     _durum(ekran, "dinliyor")
-    if surekli:
-        print("Dinliyorum...", flush=True)
     t0 = time.perf_counter()
-    wav = dinle_vad(ayar, sonsuz_bekle=surekli)
+    wav = dinle_vad(
+        ayar, sonsuz_bekle=surekli,
+        hazir_geri_cagirma=lambda: print("  ● dinliyorum", flush=True),
+    )
     sureler["kayıt"] = time.perf_counter() - t0
 
     if wav is None:
@@ -357,27 +405,44 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
         print("  [geçmiş temizlendi]")
         return True
 
-    # 3) Düşün (LLM)
+    # 3+4) Düşün ve seslendir — akış hâlinde, üst üste binerek.
+    # İlk cümle hazır olur olmaz ses başlar; model geri kalanını üretmeye
+    # devam ederken nasri çoktan konuşuyor olur.
+    _durum(ekran, "dusunuyor")
+    print("nasri: ", end="", flush=True)
     t0 = time.perf_counter()
+    ilk_ses = {"sure": None}
+    toplanan = []
+
+    def _cumle_uretici():
+        """Akıştan cümle üretir; ilk cümlede durumu 'konuşuyor'a çevirir."""
+        for cumle in cumlelere_bol(oturum.mesaj_gonder_akis(metin)):
+            if ilk_ses["sure"] is None:
+                ilk_ses["sure"] = time.perf_counter() - t0
+                _durum(ekran, "konusuyor")
+            toplanan.append(cumle)
+            print(cumle + " ", end="", flush=True)
+            yield cumle
+
     try:
-        # sesli=False ile oluşturduk; seslendirmeyi ayrı ölçmek için kendimiz yapıyoruz
-        yanit = oturum.mesaj_gonder(metin)
+        tts.konus_akisi(_cumle_uretici())
     except llm.OllamaHatasi as e:
-        print(f"  ! LLM hatası: {e}")
+        print(f"\n  ! LLM hatası: {e}")
         _durum(ekran, "bekliyor")
         return True
-    sureler["llm"] = time.perf_counter() - t0
+    except tts.TTSHatasi as e:
+        print(f"\n  ! Seslendirme hatası: {e}")
+    print()
 
-    print(f"nasri: {yanit}")
+    if not toplanan:
+        print("  (yanıt alınamadı)")
+        _durum(ekran, "bekliyor")
+        return True
 
-    # 4) Seslendir
-    _durum(ekran, "konusuyor")
-    t0 = time.perf_counter()
-    try:
-        tts.konus(yanit)
-    except Exception as e:
-        print(f"  ! Seslendirme hatası: {e}")
-    sureler["tts"] = time.perf_counter() - t0
+    toplam = time.perf_counter() - t0
+    dusunme = ilk_ses["sure"] if ilk_ses["sure"] is not None else toplam
+    sureler["düşünme"] = dusunme        # ilk sese kadar geçen süre
+    sureler["konuşma"] = toplam - dusunme
 
     _durum(ekran, "bekliyor")
     _sureleri_yazdir(sureler)

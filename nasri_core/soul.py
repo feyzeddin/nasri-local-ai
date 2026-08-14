@@ -114,9 +114,12 @@ def guncel_zaman_metni() -> str:
              "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
     gun_adi = gunler[simdi.weekday()]
     ay_adi = aylar[simdi.month - 1]
-    return (f"Şu anki tarih ve saat: {gun_adi}, {simdi.day} {ay_adi} {simdi.year}, "
-            f"{simdi.strftime('%H:%M')} ({cfg.get('zaman_dilimi', 'Europe/Istanbul')}). "
-            f"Bu bilgi sistem saatinden gelir ve günceldir; zaman sorularında bunu kullan.")
+    # Kisa tutuyoruz: bu metin HER mesajla gonderiliyor, her token gecikme.
+    # Saat "18 buçuk" degil "18:13" olarak verilir; kucuk modeller sozel
+    # saat ifadelerini karistiriyor.
+    saat = simdi.strftime("%H:%M")
+    return (f"Şu an: {gun_adi}, {simdi.day} {ay_adi} {simdi.year}, saat {saat}. "
+            f"Saat sorulursa tam olarak {saat} de.")
 
 
 def sistem_promptu_olustur() -> str:

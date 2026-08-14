@@ -4,6 +4,8 @@ Soul'un ürettiği sistem promptunu alır, kullanıcı mesajıyla birlikte
 Ollama'ya (yerel) gönderir, yanıtı döndürür.
 Şimdilik tek sağlayıcı: Ollama. İleride Tier 2/3 (bulut) buraya eklenecek.
 """
+import json
+
 import requests
 from nasri_core import config, soul
 from nasri_core.logger import get_logger
@@ -116,6 +118,66 @@ def _olcumleri_logla(veri: dict) -> None:
         g_say, g_sure, (g_say / g_sure) if g_sure else 0.0,
         u_say, u_sure, (u_say / u_sure) if u_sure else 0.0,
     )
+
+
+def yanit_akisi(kullanici_mesaji: str, gecmis: list | None = None):
+    """
+    yanit_al ile ayni, ama yaniti parca parca uretir (generator).
+    Boylece ilk cumle hazir olur olmaz seslendirmeye baslanabilir;
+    uretim ve seslendirme ust uste biner.
+    """
+    cfg = config.yukle()
+    url = f"{cfg['ollama_url']}/api/chat"
+    model = cfg["llm_model"]
+
+    mesajlar = [{"role": "system", "content": soul.sistem_promptu_olustur()}]
+    if gecmis:
+        mesajlar.extend(gecmis)
+    mesajlar.append({
+        "role": "user",
+        "content": f"[{guncel_zaman()}]\n\n{kullanici_mesaji}",
+    })
+
+    govde = {
+        "model": model,
+        "messages": mesajlar,
+        "stream": True,
+        "keep_alive": cfg.get("llm_keep_alive", "30m"),
+    }
+    log.debug("Ollama akis istegi: model=%s, mesaj=%d", model, len(mesajlar))
+
+    try:
+        cevap = requests.post(url, json=govde, timeout=180, stream=True)
+        cevap.raise_for_status()
+    except requests.exceptions.ConnectionError:
+        raise OllamaHatasi("Ollama'ya baglanilamadi. Servis calisiyor mu?")
+    except requests.exceptions.Timeout:
+        raise OllamaHatasi("Ollama zamaninda yanit vermedi.")
+    except requests.exceptions.HTTPError as e:
+        raise OllamaHatasi(f"Ollama HTTP hatasi: {e}")
+
+    toplam = 0
+    with cevap:
+        for satir in cevap.iter_lines():
+            if not satir:
+                continue
+            try:
+                veri = json.loads(satir)
+            except json.JSONDecodeError:
+                continue
+            parca = veri.get("message", {}).get("content", "")
+            if parca:
+                toplam += len(parca)
+                yield parca
+            if veri.get("done"):
+                _olcumleri_logla(veri)
+    if not toplam:
+        raise OllamaHatasi("Ollama bos yanit dondurdu.")
+
+
+def guncel_zaman() -> str:
+    """soul'daki zaman metnini dondurur (tek yerden okunsun diye)."""
+    return soul.guncel_zaman_metni()
 
 
 # Doğrudan çalıştırılırsa: tek seferlik test sohbeti

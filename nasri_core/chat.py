@@ -55,6 +55,22 @@ class Sohbet:
         self._durum("bekliyor")
         return yanit
 
+    def mesaj_gonder_akis(self, kullanici_mesaji: str):
+        """
+        mesaj_gonder ile ayni, ama yaniti parca parca uretir (generator).
+        Akis bitince tam yanit gecmise eklenir.
+        """
+        self._durum("dusunuyor")
+        parcalar = []
+        for parca in llm.yanit_akisi(kullanici_mesaji, gecmis=self.gecmis):
+            parcalar.append(parca)
+            yield parca
+        yanit = "".join(parcalar).strip()
+        if yanit:
+            self.gecmis.append({"role": "user", "content": kullanici_mesaji})
+            self.gecmis.append({"role": "assistant", "content": yanit})
+            self._gecmisi_kirp()
+
     def _seslendir(self, metin: str) -> None:
         """Yanıtı sesli okur. TTS hatası sohbeti durdurmaz, sadece loglanır."""
         try:

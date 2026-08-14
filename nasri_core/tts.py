@@ -103,6 +103,50 @@ def hazirla() -> None:
     _sesi_yukle()
 
 
+def konus_akisi(cumleler) -> None:
+    """
+    Cumle ureticisini tek bir aplay borusundan seslendirir.
+    Her cumle icin ayri aplay acmak arada tik sesi/bosluk yaratirdi;
+    tek boru kesintisiz konusma verir.
+    """
+    from piper import SynthesisConfig
+
+    cfg = config.yukle()
+    voice = _sesi_yukle()
+    syn = SynthesisConfig(
+        length_scale=float(cfg.get("tts_hiz", 1.0)),
+        volume=float(cfg.get("tts_ses_seviyesi", 1.0)),
+    )
+    cikis = cfg.get("ses_cikis_aygiti", VARSAYILAN_CIKIS)
+    try:
+        aplay = subprocess.Popen(
+            ["aplay", "-D", cikis, "-r", "22050", "-f", "S16_LE",
+             "-t", "raw", "-q", "-"],
+            stdin=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        raise TTSHatasi("aplay bulunamadi (alsa-utils kurulu mu?).")
+
+    sayac = 0
+    try:
+        for cumle in cumleler:
+            cumle = (cumle or "").strip()
+            if not cumle:
+                continue
+            sayac += 1
+            for chunk in voice.synthesize(cumle, syn_config=syn):
+                aplay.stdin.write(chunk.audio_int16_bytes)
+            aplay.stdin.flush()
+        aplay.stdin.close()
+        aplay.wait()
+    except BrokenPipeError:
+        raise TTSHatasi("Ses cikisi kesildi (aplay kapandi).")
+    finally:
+        if aplay.poll() is None:
+            aplay.terminate()
+    log.info("Akis seslendirme tamam (%d cumle).", sayac)
+
+
 # Doğrudan çalıştırılırsa: hızlı test
 if __name__ == "__main__":
     konus("Merhaba. Ben Nasrî. Ses modülüm çalışıyor.")
