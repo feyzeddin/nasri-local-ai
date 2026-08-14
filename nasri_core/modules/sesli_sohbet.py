@@ -12,6 +12,9 @@ Tetikleme modları:
   varsayılan : Enter tuşuna basınca dinlemeye geçer (yanlış tetikleme yok)
   --surekli  : sürekli dinler, ses duyunca kaydeder (wake word gelene kadar
                geçici çözüm; gürültülü ortamda yanlış tetiklenebilir)
+  --servis   : systemd altında çalışmak için. --surekli'yi kapsar, klavye
+               beklemez, SIGTERM'de temiz kapanır, hatadan toparlanıp
+               döngüye devam eder (tek bir arıza cihazı susturmasın).
 
 Her aşamanın süresi ölçülür ve tur sonunda yazdırılır — F1-23 (gecikme
 iyileştirmesi) için darboğazın nerede olduğunu görmek amacıyla.
@@ -21,6 +24,7 @@ Kullanım:
     python -m nasri_core.modules.sesli_sohbet --surekli --ekransiz
 """
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -259,7 +263,7 @@ def dinle_vad(ayar: dict, sonsuz_bekle: bool = False,
 
 # Cümle sonu sayılan işaretler. Akışta bunlardan biri görülünce parça
 # seslendirmeye gönderilir — böylece ses, yanıtın tamamı beklenmeden başlar.
-CUMLE_SONU = ".!?…\n"
+CUMLE_SONU = ".!?…\n:"
 
 
 def _kesim_bul(metin: str) -> int | None:
@@ -267,8 +271,8 @@ def _kesim_bul(metin: str) -> int | None:
     for i, karakter in enumerate(metin):
         if karakter not in CUMLE_SONU:
             continue
-        # "14.46" gibi sayı/nokta birleşimlerini bölme
-        if karakter == "." and i + 1 < len(metin) and metin[i + 1].isdigit():
+        # "14.46" veya "1. madde" gibi sayı/nokta birleşimlerini bölme
+        if karakter in ".:" and i + 1 < len(metin) and metin[i + 1].isdigit():
             continue
         return i
     return None
@@ -324,6 +328,7 @@ def _isit(ekran) -> None:
     Yapılmazsa ilk tur 10+ saniye sürer ve kullanıcı 'bozuk' sanır.
     """
     print("Hazırlanıyor: model ve ses yükleniyor...")
+    _durum(ekran, "hazirlaniyor")
     t0 = time.perf_counter()
     try:
         llm.isit()
@@ -334,6 +339,18 @@ def _isit(ekran) -> None:
     except Exception as e:
         print(f"  ! TTS ön ısıtma başarısız: {e}")
     print(f"Hazır ({time.perf_counter() - t0:.1f}s).\n")
+
+
+def _sinyalleri_kur() -> None:
+    """
+    systemd 'systemctl stop' derken SIGTERM gönderir. Varsayılan davranış
+    süreci anında öldürür ve e-Paper son görüntüsüyle donmuş kalır.
+    SIGTERM'i KeyboardInterrupt'a çevirerek normal kapanış yolunu kullanıyoruz.
+    """
+    def _dur(imza, cerceve):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _dur)
+    signal.signal(signal.SIGHUP, _dur)
 
 
 # ------------------------------------------------------------------- ana akış
@@ -368,7 +385,7 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
         metin = stt.cevir(wav, dil=config.deger_al("dil", "tr"))
     except stt.STTHatasi as e:
         print(f"  ! Ses tanıma hatası: {e}")
-        _durum(ekran, "bekliyor")
+        _durum(ekran, "dinliyor" if surekli else "bekliyor")
         return True
     finally:
         try:
@@ -380,7 +397,7 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
     metin = (metin or "").strip()
     if not metin:
         print("  (boş çıktı — tekrar deneyin)")
-        _durum(ekran, "bekliyor")
+        _durum(ekran, "dinliyor" if surekli else "bekliyor")
         return True
 
     print(f"\nSen: {metin}")
@@ -428,7 +445,7 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
         tts.konus_akisi(_cumle_uretici())
     except llm.OllamaHatasi as e:
         print(f"\n  ! LLM hatası: {e}")
-        _durum(ekran, "bekliyor")
+        _durum(ekran, "dinliyor" if surekli else "bekliyor")
         return True
     except tts.TTSHatasi as e:
         print(f"\n  ! Seslendirme hatası: {e}")
@@ -436,7 +453,7 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
 
     if not toplanan:
         print("  (yanıt alınamadı)")
-        _durum(ekran, "bekliyor")
+        _durum(ekran, "dinliyor" if surekli else "bekliyor")
         return True
 
     toplam = time.perf_counter() - t0
@@ -444,13 +461,23 @@ def bir_tur(oturum: Sohbet, ekran, ayar: dict, surekli: bool) -> bool:
     sureler["düşünme"] = dusunme        # ilk sese kadar geçen süre
     sureler["konuşma"] = toplam - dusunme
 
-    _durum(ekran, "bekliyor")
+    # Sürekli modda hoparlörün son sesi mikrofona geri kaçıp yeni bir tur
+    # tetiklemesin diye kısa bir soluklanma.
+    if surekli:
+        time.sleep(0.4)
+
+    _durum(ekran, "dinliyor" if surekli else "bekliyor")
     _sureleri_yazdir(sureler)
     return True
 
 
-def calistir(surekli: bool = False, ekran_acik: bool = True) -> None:
+def calistir(surekli: bool = False, ekran_acik: bool = True,
+             servis: bool = False) -> None:
     """Sesli sohbet döngüsünü başlatır."""
+    if servis:
+        surekli = True            # servis her zaman eller serbest çalışır
+        _sinyalleri_kur()
+
     ayar = _vad_ayarlari()
 
     ekran = None
@@ -459,6 +486,7 @@ def calistir(surekli: bool = False, ekran_acik: bool = True) -> None:
             from nasri_core.modules.display import Ekran
             ekran = Ekran()
             ekran.baslat()
+            _durum(ekran, "baslatiliyor")
         except Exception as e:
             print(f"Ekran başlatılamadı, ekransız devam ediliyor: {e}")
             ekran = None
@@ -468,26 +496,31 @@ def calistir(surekli: bool = False, ekran_acik: bool = True) -> None:
 
     print("=" * 55)
     print("nasri — sesli sohbet")
-    print(f"Mod: {'sürekli dinleme' if surekli else 'Enter ile tetikleme'}"
+    print(f"Mod: {'servis (sürekli)' if servis else ('sürekli dinleme' if surekli else 'Enter ile tetikleme')}"
           f" | Ekran: {'açık' if ekran else 'kapalı'}")
     print(f"Mikrofon: {ayar['aygit']}")
-    print("Çıkmak için 'görüşürüz' deyin veya Ctrl+C'ye basın.")
+    if not servis:
+        print("Çıkmak için 'görüşürüz' deyin veya Ctrl+C'ye basın.")
     print("=" * 55)
 
     _isit(ekran)
 
     # Eşiği ortama göre kalibre et (sessiz durun)
     print("Ortam gürültüsü ölçülüyor, bir saniye sessiz kalın...")
+    _durum(ekran, "kalibrasyon")
     try:
         ayar["esik"] = esik_belirle(ayar)
     except SesliHata as e:
         print(f"\nHATA: {e}")
-        if ekran:
+        _durum(ekran, "hata")
+        if ekran and not servis:
             ekran.kapat()
-        return
+        raise           # servis modunda systemd yeniden başlatsın
     print()
 
-    _durum(ekran, "bekliyor")
+    _durum(ekran, "dinliyor" if surekli else "bekliyor")
+    if surekli:
+        print("nasri dinliyor — konuşmanız yeterli.\n")
 
     try:
         while True:
@@ -498,14 +531,33 @@ def calistir(surekli: bool = False, ekran_acik: bool = True) -> None:
                     break
                 if girdi.lower() in ("q", "cik", "çık", "exit"):
                     break
-            if not bir_tur(oturum, ekran, ayar, surekli):
-                break
+            try:
+                if not bir_tur(oturum, ekran, ayar, surekli):
+                    if not servis:
+                        break
+                    # Servis modunda "görüşürüz" cihazı kapatmaz; sohbeti
+                    # sıfırlayıp dinlemeye döner (kapatma systemd'nin işi).
+                    oturum.sifirla()
+                    _durum(ekran, "dinliyor")
+                    continue
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                # Servis modunda tek bir arıza cihazı susturmamalı:
+                # logla, ekranda göster, kısa bekle, döngüye devam et.
+                log.exception("Tur sirasinda beklenmeyen hata: %s", e)
+                print(f"  ! Hata: {e}")
+                if not servis:
+                    raise
+                _durum(ekran, "hata")
+                time.sleep(3)
+                _durum(ekran, "dinliyor")
     except KeyboardInterrupt:
         print("\n\nDurduruldu.")
     finally:
-        _durum(ekran, "bekliyor")
         if ekran:
             try:
+                _durum(ekran, "kapaniyor")
                 ekran.kapat()
             except Exception as e:
                 log.warning("Ekran kapatılamadı: %s", e)
@@ -516,4 +568,5 @@ if __name__ == "__main__":
     calistir(
         surekli="--surekli" in sys.argv,
         ekran_acik="--ekransiz" not in sys.argv,
+        servis="--servis" in sys.argv,
     )

@@ -21,6 +21,11 @@ TAM_YENILEME_ESIGI = 30
 
 # Durum metinleri — hepsi tam Türkçe karakterli
 DURUMLAR = {
+    "baslatiliyor": "başlıyor",
+    "hazirlaniyor": "hazırlanıyor",
+    "kalibrasyon":  "ortam ölçülüyor",
+    "kapaniyor":    "kapanıyor",
+    "hata":         "hata",
     "bekliyor":  "hazır",
     "dinliyor":  "dinliyor",
     "dusunuyor": "düşünüyor",
@@ -36,6 +41,10 @@ class Ekran:
         self.font_buyuk = ImageFont.truetype(epaper.FONT_PATH, 42)
         self.font_kucuk = ImageFont.truetype(epaper.FONT_PATH, 18)
         self.font_marka = ImageFont.truetype(epaper.FONT_PATH, 22)
+        # Uzun durum metinleri 42 puntoyla ekrana sigmiyor;
+        # sigana kadar kucultuyoruz.
+        self.font_orta = ImageFont.truetype(epaper.FONT_PATH, 28)
+        self.font_dar = ImageFont.truetype(epaper.FONT_PATH, 20)
         self._durum = "bekliyor"
         self._kismi_sayac = 0
         self._tz = ZoneInfo(config.deger_al("zaman_dilimi", "Europe/Istanbul"))
@@ -70,10 +79,14 @@ class Ekran:
 
         # Orta: durum metni, büyük punto, ortalanmış
         durum_metni = DURUMLAR.get(self._durum, self._durum)
-        bbox = d.textbbox((0, 0), durum_metni, font=self.font_buyuk)
-        gen = bbox[2] - bbox[0]
-        x = (self.epd.en - gen) // 2
-        d.text((x, 40), durum_metni, font=self.font_buyuk, fill=0)
+        for font, y in ((self.font_buyuk, 40), (self.font_orta, 48),
+                        (self.font_dar, 52)):
+            bbox = d.textbbox((0, 0), durum_metni, font=font)
+            gen = bbox[2] - bbox[0]
+            if gen <= self.epd.en - 10 or font is self.font_dar:
+                d.text(((self.epd.en - gen) // 2, y), durum_metni,
+                       font=font, fill=0)
+                break
 
         # Alt: saat ve tarih, küçük punto
         simdi = datetime.now(self._tz).strftime("%H:%M   %d.%m.%Y")

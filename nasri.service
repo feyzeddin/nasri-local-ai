@@ -1,0 +1,44 @@
+[Unit]
+Description=nasri — sesli asistan
+Documentation=https://github.com/feyzeddin/nasri-local-ai
+
+# Ollama hazır olmadan başlarsak ön ısıtma başarısız olur; Wants kullanıyoruz
+# (Requires değil) ki Ollama geçici olarak düşse bile nasri ayakta kalsın.
+After=network-online.target sound.target ollama.service
+Wants=network-online.target ollama.service
+
+# Elektrik kesintisi sonrası açılışta hızlı ve tekrar tekrar çökerse
+# systemd'nin servisi tamamen bırakmasını engelliyoruz (aşağıda RestartSec ile).
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=nasrifeyz
+WorkingDirectory=/home/nasrifeyz/nasri
+
+# venv'i PATH'e alıyoruz; arecord/aplay/ollama için sistem yolları da gerekli.
+Environment="PATH=/home/nasrifeyz/nasri/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="HOME=/home/nasrifeyz"
+# Çıktı journald'a anında düşsün (aksi halde blok blok tamponlanır)
+Environment="PYTHONUNBUFFERED=1"
+
+ExecStart=/home/nasrifeyz/nasri/venv/bin/python -m nasri_core.modules.sesli_sohbet --servis
+
+# SIGTERM'i sesli_sohbet.py yakalayıp e-Paper'ı uyku moduna alıyor.
+# TimeoutStopSec, o sırada süren bir seslendirmenin bitmesine izin verir.
+KillSignal=SIGTERM
+TimeoutStopSec=25
+
+# Elektrik kesintisi, çökme, Ollama'nın gitmesi — hepsinde kendiliğinden döner.
+Restart=always
+RestartSec=10
+
+# Ses ve SPI/GPIO erişimi kullanıcının gruplarından gelir (User= ile yüklenir).
+# Ek sıkılaştırma bilinçli olarak eklenmedi: e-Paper /dev/spidev ve
+# /dev/gpiochip, ses ise /dev/snd erişimi istiyor.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
